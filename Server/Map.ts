@@ -46,12 +46,27 @@ export class Chunk {
             do {
                 chamber.x = Math.floor(Math.random() * Map.chunkSize);
                 chamber.y = Math.floor(Math.random() * Map.chunkSize);
-                chamber.size = Math.floor(Math.random() * 10) + 4;
-                console.log("x: " + chamber.x + "y: " + chamber.y);
+                chamber.size = Math.floor(Math.random() * 14) + 6;
             }
             while (chamber.overlapsAny(chambers));
             chambers.push(chamber);
             this.circle(chamber.x, chamber.y, chamber.size, 0);
+        }
+
+        for (var i = chambers.length - 1; i > 0; i--) {
+            var chamber: Chamber = chambers[i];
+            for (var j = chambers.length - 1; j > 0; j--) {
+                var otherChamber: Chamber = chambers[j];
+                if (Math.random() > 0.3 && chamber != otherChamber) {
+                    if (!chamber.linked(otherChamber)) {
+                        chamber.linkTo(otherChamber);
+                    }
+                }
+            }
+        }
+
+        for (var i = chambers.length - 1; i > 0; i--) {
+            
         }
         
     }
@@ -177,9 +192,31 @@ export class Chamber {
 
         return false;
     }
+
+    linked(chamber: Chamber): Boolean {
+        for (var i = this.connections.length - 1; i > 0; i--) {
+            if (this.connections[i].end == chamber) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 export class Connection {
     constructor(public start: Chamber, public end: Chamber) {
+    }
+
+    equals(other: Connection): Boolean {
+        if (this.start == other.start && this.end == other.end) {
+            return true;
+        }
+        else if (this.start == other.end && this.end == other.start) {
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 }

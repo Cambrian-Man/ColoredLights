@@ -1,3 +1,4 @@
+/// <reference path="./Lights.ts" />
 var Map = (function () {
     function Map() {
         this.chunks = new Array();
@@ -37,11 +38,12 @@ var Chunk = (function () {
             do {
                 chamber.x = Math.floor(Math.random() * Map.chunkSize);
                 chamber.y = Math.floor(Math.random() * Map.chunkSize);
-                chamber.size = Math.floor(Math.random() * 10) + 4;
-                console.log("x: " + chamber.x + "y: " + chamber.y);
+                chamber.size = Math.floor(Math.random() * 14) + 6;
             }while(chamber.overlapsAny(chambers));
             chambers.push(chamber);
             this.circle(chamber.x, chamber.y, chamber.size, 0);
+        }
+        for(var i = chambers.length - 1; i > 0; i--) {
         }
     };
     Chunk.prototype.toArray = function () {
@@ -174,3 +176,4 @@ var Connection = (function () {
     return Connection;
 })();
 exports.Connection = Connection;
+//@ sourceMappingURL=Map.js.map
