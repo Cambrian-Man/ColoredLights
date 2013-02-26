@@ -113,4 +113,3 @@ window.onload = function () {
     var el = document.getElementById("game");
     var game = new Lights(el);
 };
-//@ sourceMappingURL=LightsClient.js.map

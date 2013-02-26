@@ -40,4 +40,3 @@ io.configure(function () {
 });
 var server = new Server(io);
 server.start();
-//@ sourceMappingURL=Lights.js.map

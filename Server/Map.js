@@ -1,4 +1,4 @@
-/// <reference path="./Lights.ts" />
+var uuid = require('node-uuid');
 var Map = (function () {
     function Map() {
         this.chunks = new Array();
@@ -7,7 +7,8 @@ var Map = (function () {
     Map.prototype.load = function (x, y) {
         var chunk = new Chunk(x, y);
         if(chunk.tiles.length == 0) {
-            chunk.generate();
+            var generator = new ChunkGen(chunk);
+            generator.generate();
         }
         return chunk;
     };
@@ -23,29 +24,6 @@ var Chunk = (function () {
     Chunk.prototype.tileAt = function (x, y) {
         return this.tiles[(y * Map.chunkSize) + x];
     };
-    Chunk.prototype.generate = function () {
-        var c;
-        var t;
-        for(var i = 0; i < Math.pow(Map.chunkSize, 2); i++) {
-            var g = (Math.random() * 50) + 30;
-            c = new Color(g, g, g);
-            t = new Tile(1, c);
-            this.tiles[i] = t;
-        }
-        var chambers = new Array();
-        for(var i = (Math.random() * 5) + 1; i > 0; i--) {
-            var chamber = new Chamber();
-            do {
-                chamber.x = Math.floor(Math.random() * Map.chunkSize);
-                chamber.y = Math.floor(Math.random() * Map.chunkSize);
-                chamber.size = Math.floor(Math.random() * 14) + 6;
-            }while(chamber.overlapsAny(chambers));
-            chambers.push(chamber);
-            this.circle(chamber.x, chamber.y, chamber.size, 0);
-        }
-        for(var i = chambers.length - 1; i > 0; i--) {
-        }
-    };
     Chunk.prototype.toArray = function () {
         var codes = [];
         for(var i = this.tiles.length - 1; i > 0; i--) {
@@ -53,7 +31,66 @@ var Chunk = (function () {
         }
         return codes;
     };
-    Chunk.prototype.circle = function (x, y, radius, type, color) {
+    return Chunk;
+})();
+exports.Chunk = Chunk;
+var ChunkGen = (function () {
+    function ChunkGen(chunk) {
+        this.chunk = chunk;
+    }
+    ChunkGen.prototype.generate = function () {
+        var c;
+        var t;
+        for(var i = 0; i < Math.pow(Map.chunkSize, 2); i++) {
+            var g = (Math.random() * 50) + 30;
+            c = new Color(g, g, g);
+            t = new Tile(1, c);
+            this.chunk.tiles[i] = t;
+        }
+        var chambers = new Array();
+        for(var i = (Math.random() * 5) + 3; i > 0; i--) {
+            var chamber = new Chamber();
+            do {
+                chamber.x = Math.floor(Math.random() * Map.chunkSize);
+                chamber.y = Math.floor(Math.random() * Map.chunkSize);
+                chamber.size = Math.floor(Utils.random(3, 7));
+            }while(chamber.overlapsAny(chambers));
+            chambers.push(chamber);
+            this.circle(chamber.x, chamber.y, chamber.size, 0);
+        }
+        this.chunk.chambers = chambers;
+        for(var i = chambers.length - 1; i > 0; i--) {
+            var chamber = chambers[i];
+            for(var j = chambers.length - 1; j > 0; j--) {
+                var otherChamber = chambers[j];
+                if(Math.random() > 0.5 && chamber != otherChamber) {
+                    if(!chamber.linked(otherChamber)) {
+                        chamber.linkTo(otherChamber);
+                    }
+                }
+            }
+        }
+        var connections = [];
+        for(var i = 0, tot = chambers.length; i < tot; i++) {
+            connections = connections.concat(chambers[i].connections);
+        }
+        var tunnels = [];
+        var connectionIn = function (array, connection) {
+            for(var i = 0, tot = array.length; i < tot; i++) {
+                if(connection.equals(array[i])) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        for(var i = 0, tot = connections.length; i < tot; i++) {
+            if(!connectionIn(tunnels, connections[i])) {
+                this.tunnel(connections[i].start, connections[i].end, 2, 5);
+                tunnels.push(connections[i]);
+            }
+        }
+    };
+    ChunkGen.prototype.circle = function (x, y, radius, type, color) {
         var top = y - radius;
         var bottom = y + radius;
         var left = x - radius;
@@ -68,7 +105,7 @@ var Chunk = (function () {
                 continue;
             }
             for(var row = top; row <= bottom; row++) {
-                var t = this.tileAt(col, row);
+                var t = this.chunk.tileAt(col, row);
                 if(row < 0 || row >= Map.chunkSize) {
                     continue;
                 } else if(type != undefined && t.type == type) {
@@ -88,17 +125,17 @@ var Chunk = (function () {
             }
         }
     };
-    Chunk.prototype.tunnel = function (p1, p2, minRadius, maxRadius) {
-        for(var f = 0; f < 1; f += 0.1) {
-            var radius = Math.floor(Math.random() * maxRadius + (maxRadius - minRadius));
-            var x = Math.round(Utils.lerp(p1.x, p2.x, f));
-            var y = Math.round(Utils.lerp(p1.y, p2.y, f));
+    ChunkGen.prototype.tunnel = function (p1, p2, minRadius, maxRadius) {
+        var step = minRadius / Utils.distance(p1, p2);
+        for(var f = 0; f < 1; f += step) {
+            var radius = Math.floor(Utils.random(minRadius, maxRadius));
+            var x = Math.round(Utils.lerp(p1.x, p2.x, f) + Utils.random(0, radius / 2));
+            var y = Math.round(Utils.lerp(p1.y, p2.y, f) + Utils.random(0, radius / 2));
             this.circle(x, y, radius, 0);
         }
     };
-    return Chunk;
+    return ChunkGen;
 })();
-exports.Chunk = Chunk;
 var Utils = (function () {
     function Utils() { }
     Utils.distance = function distance(p1, p2) {
@@ -106,6 +143,9 @@ var Utils = (function () {
     };
     Utils.lerp = function lerp(a, b, f) {
         return a + f * (b - a);
+    };
+    Utils.random = function random(min, max) {
+        return (Math.random() * (max - min)) + min;
     };
     return Utils;
 })();
@@ -149,6 +189,7 @@ var Chamber = (function () {
         this.y = y;
         this.size = size;
         this.connections = new Array();
+        this.id = uuid();
     }
     Chamber.prototype.linkTo = function (chamber) {
         this.connections.push(new Connection(this, chamber));
@@ -165,6 +206,22 @@ var Chamber = (function () {
         }
         return false;
     };
+    Chamber.prototype.linked = function (chamber) {
+        for(var i = this.connections.length - 1; i > 0; i--) {
+            if(this.connections[i].end == chamber) {
+                return true;
+            }
+        }
+        return false;
+    };
+    Chamber.prototype.hasLink = function (connection) {
+        for(var i = this.connections.length - 1; i > 0; i--) {
+            if(this.connections[i].equals(connection)) {
+                return true;
+            }
+        }
+        return false;
+    };
     return Chamber;
 })();
 exports.Chamber = Chamber;
@@ -172,8 +229,17 @@ var Connection = (function () {
     function Connection(start, end) {
         this.start = start;
         this.end = end;
+        Utils.distance(start, end);
     }
+    Connection.prototype.equals = function (other) {
+        if(this.start == other.start && this.end == other.end) {
+            return true;
+        } else if(this.start == other.end && this.end == other.start) {
+            return true;
+        } else {
+            return false;
+        }
+    };
     return Connection;
 })();
 exports.Connection = Connection;
-//@ sourceMappingURL=Map.js.map
