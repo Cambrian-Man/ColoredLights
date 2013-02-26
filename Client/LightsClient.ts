@@ -9,8 +9,13 @@ class Lights {
     stage: createjs.Stage;
     socket: SocketNamespace;
 
+    public camera: Camera;
+    currentChunk: Chunk;
+
+    public chunks: Object;
+
     static chunkSize: number = 64;
-    static tileSize: number = 8;
+    static tileSize: number = 16;
     
     static types = {
         empty: 0,
@@ -18,33 +23,121 @@ class Lights {
         moss: 2
     };
 
+    static keys = {
+        up: false,
+        down: false,
+        left: false,
+        right: false
+    };
+
+    static keyCodes = {
+        up: 38,
+        down: 40,
+        left: 37,
+        right: 39
+    };
+
+    static public directions :Point[] = [
+        { x: 0, y: -1 },
+        { x: 1, y: -1 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0, y: 1 },
+        { x: -1, y: 1 },
+        { x: -1, y: 0 },
+        { x: -1, y: -1 }
+    ];
+
     constructor(public canvas: HTMLCanvasElement) {
         this.stage = new createjs.Stage(canvas);
-        createjs.Ticker.addListener((event) => this.update(event));
+        this.camera = new Camera(this, canvas.width, canvas.height);
 
         this.socket = <SocketNamespace> io.connect('http://localhost:3300');
-        this.socket.on("connection", (data) => this.connection(data));
-        this.socket.on("chunk", (data) => this.getChunk(data));
+        this.socket.on("chunk", (data) => this.addChunk(data));
+        this.socket.on("connection", (data) => this.connect(data));
+
+        this.chunks = {};
     }
 
-    connection(data) {
-        
+    connect(data) {
+        window.addEventListener("keydown", (event: KeyboardEvent) => this.keyDown(event));
+        window.addEventListener("keyup", (event: KeyboardEvent) => this.keyUp(event));
+
+        createjs.Ticker.addListener((event) => this.update(event));
     }
 
-    getChunk(data) {
-        var newChunk: Chunk = new Chunk(0, 0, data.chunk);
+    keyDown(event: KeyboardEvent) {
+        switch (event.keyCode) {
+            case Lights.keyCodes.up:
+                Lights.keys.up = true;
+                break;
+            case Lights.keyCodes.down:
+                Lights.keys.down = true;
+                break;
+            case Lights.keyCodes.left:
+                Lights.keys.left = true;
+                break;
+            case Lights.keyCodes.right:
+                Lights.keys.right = true;
+                break;
+        }
+    }
+
+    keyUp(event: KeyboardEvent) {
+        switch (event.keyCode) {
+            case Lights.keyCodes.up:
+                Lights.keys.up = false;
+                break;
+            case Lights.keyCodes.down:
+                Lights.keys.down = false;
+                break;
+            case Lights.keyCodes.left:
+                Lights.keys.left = false;
+                break;
+            case Lights.keyCodes.right:
+                Lights.keys.right = false;
+                break;
+        }
+    }
+
+    addChunk(data) {
+        var newChunk: Chunk = new Chunk(data.chunkX, data.chunkY, data.chunk, data.adjacent);
         this.stage.addChild(newChunk);
+
+        if (!this.currentChunk) {
+            this.currentChunk = newChunk;
+            console.log(newChunk.adjacent);
+        }
+        this.chunks[data.id] = newChunk;
     }
 
     update(event?: any) {
         this.stage.update();
+
+        if (Lights.keys.up) {
+            this.camera.y -= 10;
+        }
+        else if (Lights.keys.down) {
+            this.camera.y += 10;
+        }
+
+        if (Lights.keys.left) {
+            this.camera.x -= 10;
+        }
+        else if (Lights.keys.right) {
+            this.camera.x += 10;
+        }
+
+        if (this.currentChunk) {
+            this.camera.focus(this.currentChunk, this.camera.x, this.camera.y);
+        }
     }
 }
 
 class Chunk extends createjs.Shape {
     data: number[];
 
-    constructor(public chunkX: number, public chunkY: number, data:number[]) {
+    constructor(public chunkX: number, public chunkY: number, data:number[], public adjacent:string[]) {
         super();
 
         this.data = data;
@@ -112,6 +205,32 @@ class Color {
 
     toString() {
         return "rgba(" + [this.r, this.g, this.b, 1.0].join(',') + ")";
+    }
+}
+
+class Camera {
+    public x: number;
+    public y: number;
+
+    constructor(public game:Lights, public width: number, public height: number) {
+        this.x = 0;
+        this.y = 0;
+    }
+
+    focus(chunk: Chunk, x: number, y: number) {
+        var chunkX: number = chunk.chunkX;
+        var chunkY: number = chunk.chunkY;
+        var chunkPixels: number = Lights.chunkSize * Lights.tileSize;
+
+        chunk.x = -x;
+        chunk.y = -y;
+
+        for (var i = 0; i < 8; i++) {
+            var p: Point = Lights.directions[i];
+            var adjChunk: Chunk = this.game.chunks[chunk.adjacent[i]];
+            adjChunk.x = p.x * chunkPixels - x;
+            adjChunk.y = p.y * chunkPixels - y;
+        }
     }
 }
 

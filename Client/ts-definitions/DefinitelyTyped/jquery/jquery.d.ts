@@ -379,7 +379,7 @@ interface JQuery {
     hasClass(className: string): bool;
 
     html(): string;
-    html(htmlString: string): JQuery;
+    html(htmlstring: string): JQuery;
     html(htmlContent: (index: number, oldhtml: string) => string): JQuery;
 
     prop(propertyName: string): string;
@@ -670,8 +670,8 @@ interface JQuery {
     replaceWith(func: any): JQuery;
 
     text(): string;
-    text(textString: any): JQuery;
-    text(textString: (index: number, text: string) => string): JQuery;
+    text(textstring: any): JQuery;
+    text(textstring: (index: number, text: string) => string): JQuery;
 
     toArray(): any[];
 

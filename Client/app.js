@@ -45,7 +45,7 @@ var Chunk = (function (_super) {
             if(t.type == Lights.types.empty) {
                 continue;
             }
-            this.graphics.beginFill(t.color.toString());
+            this.graphics.beginFill(t.color.tostring());
             var p = ChunkData.tilePoint(i);
             this.graphics.rect(p.x * Lights.tileSize, p.y * Lights.tileSize, Lights.tileSize, Lights.tileSize);
         }
@@ -112,7 +112,7 @@ var Color = (function () {
         this.g = Math.round(g);
         this.b = Math.round(b);
     }
-    Color.prototype.toString = function () {
+    Color.prototype.tostring = function () {
         return "rgba(" + [
             this.r, 
             this.g, 

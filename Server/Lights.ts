@@ -22,9 +22,22 @@ export class Server {
         var id: string = <string> Server.uuid();
         var player: Player = new Player(id, socket);
         this.players[player.id] = player;
+        socket.emit('connection', { id: id });
             
-        var codes: number[] = this.map.load(0, 0).toArray();
-        socket.emit('chunk', { chunk: codes });
+        this.map.load(0, 0, (chunk: map.Chunk) => {
+            this.map.activate(chunk, (adjChunks: map.Chunk[]) => {
+                this.sendChunk(socket, chunk);
+                for (var i = 0, tot = adjChunks.length; i < tot; i++) {
+                    this.sendChunk(socket, adjChunks[i]);
+                }
+            });
+       
+        });
+    }
+
+    sendChunk(socket: Socket, chunk: map.Chunk) {
+        var codes: number[] = chunk.toArray();
+        socket.emit('chunk', { chunk: codes, x: chunk.chunkX, y: chunk.chunkY, id: chunk.id, adjacent: chunk.adjacent });
     }
 }
 

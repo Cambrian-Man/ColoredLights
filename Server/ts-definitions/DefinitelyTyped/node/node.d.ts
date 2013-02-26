@@ -165,7 +165,7 @@ interface NodeProcess extends EventEmitter {
 interface NodeBuffer {
     [index: number]: number;
     write(string: string, offset?: number, length?: number, encoding?: string): number;
-    toString(encoding?: string, start?: number, end?: number): string;
+    tostring(encoding?: string, start?: number, end?: number): string;
     length: number;
     copy(targetBuffer: NodeBuffer, targetStart?: number, sourceStart?: number, sourceEnd?: number): void;
     slice(start?: number, end?: number): NodeBuffer;
@@ -596,7 +596,7 @@ declare module "url" {
         slashes: bool;
     }
 
-    export function parse(urlStr: string, parseQueryString? , slashesDenoteHost? ): Url;
+    export function parse(urlStr: string, parseQuerystring? , slashesDenoteHost? ): Url;
     export function format(url: Url): string;
     export function resolve(from: string, to: string): string;
 }
@@ -746,7 +746,7 @@ declare module "fs" {
     export function linkSync(srcpath: string, dstpath: string): void;
     export function symlink(srcpath: string, dstpath: string, type?: string, callback?: Function): void;
     export function symlinkSync(srcpath: string, dstpath: string, type?: string): void;
-    export function readlink(path: string, callback?: (err: Error, linkString: string) =>any): void;
+    export function readlink(path: string, callback?: (err: Error, linkstring: string) =>any): void;
     export function realpath(path: string, callback?: (err: Error, resolvedPath: string) =>any): void;
     export function realpath(path: string, cache: string, callback: (err: Error, resolvedPath: string) =>any): void;
     export function realpathSync(path: string, cache?: string): void;
@@ -816,12 +816,12 @@ declare module "path" {
 }
 
 declare module "string_decoder" {
-    export interface NodeStringDecoder {
+    export interface NodestringDecoder {
         write(buffer: NodeBuffer): string;
         detectIncompleteChar(buffer: NodeBuffer): number;
     }
-    export var StringDecoder: {
-        new (encoding: string): NodeStringDecoder;
+    export var stringDecoder: {
+        new (encoding: string): NodestringDecoder;
     };
 }
 

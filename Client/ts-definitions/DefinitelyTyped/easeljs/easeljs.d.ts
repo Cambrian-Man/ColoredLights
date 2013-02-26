@@ -63,7 +63,7 @@ module createjs {
         localToLocal(x: number, y: number, target: DisplayObject): Point;
         setTransform(x: number, y: number, scaleX: number, scaleY: number, rotation: number, skewX: number, skewY: number, regX: number, regY: number): DisplayObject;
         setupContext(ctx: CanvasRenderingContext2D): void;
-        toString(): string;
+        tostring(): string;
         uncache(): void;
         updateCache(compositeOperation: string): void;
 
@@ -82,7 +82,7 @@ module createjs {
         applyFilter(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, targetCtx?: CanvasRenderingContext2D, targetX?: number, targetY?: number): bool;
         clone(): Filter;
         getBounds(): Rectangle;
-        toString(): string;
+        tostring(): string;
     }
 
 
@@ -295,7 +295,7 @@ module createjs {
         setStrokeStyle(thickness: number, caps?: number, joints?: string, miter?: number): Graphics;
         setStrokeStyle(thickness: number, caps?: string, joints?: number, miter?: number): Graphics;
         setStrokeStyle(thickness: number, caps?: number, joints?: number, miter?: number): Graphics;
-        toString(): string;
+        tostring(): string;
     }
 
 
@@ -331,7 +331,7 @@ module createjs {
         rotate(angle: number): Matrix2D;
         scale(x: number, y: number): Matrix2D;
         skew(skewX: number, skewY: number): Matrix2D;
-        toString(): string;
+        tostring(): string;
         translate(x: number, y: number): Matrix2D;
     }
 
@@ -352,7 +352,7 @@ module createjs {
         // methods
         constructor (type: string, stageX: number, stageY: number, target: DisplayObject, nativeEvent: NativeMouseEvent, pointerID: number, primary: bool, rawX: number, rawY: number);
         clone(): MouseEvent;
-        toString(): string;
+        tostring(): string;
 
         // events
         onMouseMove: (event: MouseEvent) => any;
@@ -391,7 +391,7 @@ module createjs {
         // methods
         constructor (x: number, y: number);
         clone(): Point;
-        toString(): string;
+        tostring(): string;
     }
 
 
@@ -405,7 +405,7 @@ module createjs {
         // methods
         constructor (x: number, y: number, width: number, height: number);
         clone(): Rectangle;
-        toString(): string;
+        tostring(): string;
     }
 
 
@@ -420,7 +420,7 @@ module createjs {
         // methods
         constructor (color: string, offsetX: number, offsetY: number, blur: number);
         clone(): Shadow;
-        toString(): string;
+        tostring(): string;
     }
 
 
@@ -453,7 +453,7 @@ module createjs {
         getAnimations(): string[];
         getFrame(frameIndex: number): Object;
         getNumFrames(animation: string): number;
-        toString(): string;
+        tostring(): string;
 
         // events
         onComplete: () => any;
@@ -475,7 +475,7 @@ module createjs {
         buildAsync(callback?: (reference: SpriteSheetBuilder) => any, timeSlice?: number): void;
         clone(): SpriteSheetBuilder;
         stopAsync(): void;
-        toString(): string;
+        tostring(): string;
     }
 
 

@@ -8,41 +8,148 @@ var Lights = (function () {
         this.canvas = canvas;
         var _this = this;
         this.stage = new createjs.Stage(canvas);
-        createjs.Ticker.addListener(function (event) {
-            return _this.update(event);
-        });
+        this.camera = new Camera(this, canvas.width, canvas.height);
         this.socket = io.connect('http://localhost:3300');
-        this.socket.on("connection", function (data) {
-            return _this.connection(data);
-        });
         this.socket.on("chunk", function (data) {
-            return _this.getChunk(data);
+            return _this.addChunk(data);
         });
+        this.socket.on("connection", function (data) {
+            return _this.connect(data);
+        });
+        this.chunks = {
+        };
     }
     Lights.chunkSize = 64;
-    Lights.tileSize = 8;
+    Lights.tileSize = 16;
     Lights.types = {
         empty: 0,
         wall: 1,
         moss: 2
     };
-    Lights.prototype.connection = function (data) {
+    Lights.keys = {
+        up: false,
+        down: false,
+        left: false,
+        right: false
     };
-    Lights.prototype.getChunk = function (data) {
-        var newChunk = new Chunk(0, 0, data.chunk);
+    Lights.keyCodes = {
+        up: 38,
+        down: 40,
+        left: 37,
+        right: 39
+    };
+    Lights.directions = [
+        {
+            x: 0,
+            y: -1
+        }, 
+        {
+            x: 1,
+            y: -1
+        }, 
+        {
+            x: 1,
+            y: 0
+        }, 
+        {
+            x: 1,
+            y: 1
+        }, 
+        {
+            x: 0,
+            y: 1
+        }, 
+        {
+            x: -1,
+            y: 1
+        }, 
+        {
+            x: -1,
+            y: 0
+        }, 
+        {
+            x: -1,
+            y: -1
+        }
+    ];
+    Lights.prototype.connect = function (data) {
+        var _this = this;
+        window.addEventListener("keydown", function (event) {
+            return _this.keyDown(event);
+        });
+        window.addEventListener("keyup", function (event) {
+            return _this.keyUp(event);
+        });
+        createjs.Ticker.addListener(function (event) {
+            return _this.update(event);
+        });
+    };
+    Lights.prototype.keyDown = function (event) {
+        switch(event.keyCode) {
+            case Lights.keyCodes.up:
+                Lights.keys.up = true;
+                break;
+            case Lights.keyCodes.down:
+                Lights.keys.down = true;
+                break;
+            case Lights.keyCodes.left:
+                Lights.keys.left = true;
+                break;
+            case Lights.keyCodes.right:
+                Lights.keys.right = true;
+                break;
+        }
+    };
+    Lights.prototype.keyUp = function (event) {
+        switch(event.keyCode) {
+            case Lights.keyCodes.up:
+                Lights.keys.up = false;
+                break;
+            case Lights.keyCodes.down:
+                Lights.keys.down = false;
+                break;
+            case Lights.keyCodes.left:
+                Lights.keys.left = false;
+                break;
+            case Lights.keyCodes.right:
+                Lights.keys.right = false;
+                break;
+        }
+    };
+    Lights.prototype.addChunk = function (data) {
+        var newChunk = new Chunk(data.chunkX, data.chunkY, data.chunk, data.adjacent);
         this.stage.addChild(newChunk);
+        if(!this.currentChunk) {
+            this.currentChunk = newChunk;
+            console.log(newChunk.adjacent);
+        }
+        this.chunks[data.id] = newChunk;
     };
     Lights.prototype.update = function (event) {
         this.stage.update();
+        if(Lights.keys.up) {
+            this.camera.y -= 10;
+        } else if(Lights.keys.down) {
+            this.camera.y += 10;
+        }
+        if(Lights.keys.left) {
+            this.camera.x -= 10;
+        } else if(Lights.keys.right) {
+            this.camera.x += 10;
+        }
+        if(this.currentChunk) {
+            this.camera.focus(this.currentChunk, this.camera.x, this.camera.y);
+        }
     };
     return Lights;
 })();
 var Chunk = (function (_super) {
     __extends(Chunk, _super);
-    function Chunk(chunkX, chunkY, data) {
+    function Chunk(chunkX, chunkY, data, adjacent) {
         _super.call(this);
         this.chunkX = chunkX;
         this.chunkY = chunkY;
+        this.adjacent = adjacent;
         this.data = data;
         this.generateGraphics();
     }
@@ -109,7 +216,31 @@ var Color = (function () {
     };
     return Color;
 })();
+var Camera = (function () {
+    function Camera(game, width, height) {
+        this.game = game;
+        this.width = width;
+        this.height = height;
+        this.x = 0;
+        this.y = 0;
+    }
+    Camera.prototype.focus = function (chunk, x, y) {
+        var chunkX = chunk.chunkX;
+        var chunkY = chunk.chunkY;
+        var chunkPixels = Lights.chunkSize * Lights.tileSize;
+        chunk.x = -x;
+        chunk.y = -y;
+        for(var i = 0; i < 8; i++) {
+            var p = Lights.directions[i];
+            var adjChunk = this.game.chunks[chunk.adjacent[i]];
+            adjChunk.x = p.x * chunkPixels - x;
+            adjChunk.y = p.y * chunkPixels - y;
+        }
+    };
+    return Camera;
+})();
 window.onload = function () {
     var el = document.getElementById("game");
     var game = new Lights(el);
 };
+//@ sourceMappingURL=LightsClient.js.map

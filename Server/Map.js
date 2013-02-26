@@ -1,26 +1,115 @@
+/// <reference path="./Lights.ts" />
 var uuid = require('node-uuid');
 var Map = (function () {
     function Map() {
-        this.chunks = new Array();
+        this.chunks = new ChunkMap();
     }
     Map.chunkSize = 64;
-    Map.prototype.load = function (x, y) {
+    Map.directions = {
+        north: {
+            x: 0,
+            y: -1
+        },
+        northeast: {
+            x: 1,
+            y: -1
+        },
+        east: {
+            x: 1,
+            y: 0
+        },
+        southeast: {
+            x: 1,
+            y: 1
+        },
+        south: {
+            x: 0,
+            y: 1
+        },
+        southwest: {
+            x: -1,
+            y: 1
+        },
+        west: {
+            x: -1,
+            y: 0
+        },
+        northwest: {
+            x: -1,
+            y: -1
+        }
+    };
+    Map.directionNames = [
+        "north", 
+        "northeast", 
+        "east", 
+        "southeast", 
+        "south", 
+        "southwest", 
+        "west", 
+        "northwest"
+    ];
+    Map.prototype.load = function (x, y, callback) {
         var chunk = new Chunk(x, y);
         if(chunk.tiles.length == 0) {
             var generator = new ChunkGen(chunk);
             generator.generate();
         }
-        return chunk;
+        for(var i = 0; i < 8; i++) {
+            var p = Map.directions[Map.directionNames[i]];
+            var adjChunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
+            if(adjChunk === null) {
+                chunk.adjacent.push(null);
+            } else {
+                chunk.adjacent.push(adjChunk.id);
+            }
+        }
+        this.chunks.add(chunk);
+        if(callback) {
+            callback(chunk);
+        }
+    };
+    Map.prototype.getChunk = function (id) {
+        return this.chunks.get(id);
+    };
+    Map.prototype.activate = function (chunk, callback) {
+        var adjChunks = [];
+        var collect = function (collectChunk) {
+            adjChunks.push(collectChunk);
+            if(adjChunks.length == 8) {
+                callback(adjChunks);
+            }
+        };
+        for(var i = 0, tot = chunk.adjacent.length; i < tot; i++) {
+            if(chunk.adjacent[i] === null) {
+                var p = Map.directions[Map.directionNames[i]];
+                this.load(chunk.chunkX + p.x, chunk.chunkY + p.y, function (adjChunk) {
+                    chunk.adjacent[i] = adjChunk.id;
+                    collect(adjChunk);
+                });
+            }
+        }
     };
     return Map;
 })();
 exports.Map = Map;
 var Chunk = (function () {
-    function Chunk(chunkX, chunkY) {
+    function Chunk(chunkX, chunkY, id, adjacent) {
         this.chunkX = chunkX;
         this.chunkY = chunkY;
+        this.id = id;
+        this.adjacent = adjacent;
         this.tiles = new Array();
+        if(!id) {
+            this.id = uuid();
+        }
+        if(!adjacent) {
+            this.adjacent = [];
+        }
     }
+    Chunk.prototype.activate = function () {
+        this.active = true;
+    };
     Chunk.prototype.tileAt = function (x, y) {
         return this.tiles[(y * Map.chunkSize) + x];
     };
@@ -34,6 +123,56 @@ var Chunk = (function () {
     return Chunk;
 })();
 exports.Chunk = Chunk;
+var ChunkMap = (function () {
+    function ChunkMap() {
+        this.chunks = {
+        };
+    }
+    ChunkMap.prototype.add = function (chunk) {
+        this.chunks[chunk.id] = chunk;
+    };
+    ChunkMap.prototype.get = function (id) {
+        return this.chunks[id];
+    };
+    ChunkMap.prototype.getAt = // Returns the chunk at a given position
+    // or null.
+    // May return null because a chunk is nonexistant or
+    // because it is unloaded!
+    function (x, y) {
+        var chunk;
+        for(var prop in this.chunks) {
+            if(this.chunks.hasOwnProperty(prop)) {
+                chunk = this.chunks[prop];
+                if(chunk.chunkX == x && chunk.chunkY == y) {
+                    return chunk;
+                }
+            }
+        }
+        return null;
+    };
+    ChunkMap.prototype.remove = function (chunk) {
+        if(this.chunks[chunk.id]) {
+            delete this.chunks[chunk.id];
+        }
+    };
+    ChunkMap.prototype.contains = function (chunk) {
+        if(this.chunks[chunk.id]) {
+            return true;
+        } else {
+            return false;
+        }
+    };
+    ChunkMap.prototype.keys = function () {
+        var keys = [];
+        for(var prop in this.chunks) {
+            if(this.chunks.hasOwnProperty(prop)) {
+                keys.push(prop);
+            }
+        }
+        return keys;
+    };
+    return ChunkMap;
+})();
 var ChunkGen = (function () {
     function ChunkGen(chunk) {
         this.chunk = chunk;
@@ -47,6 +186,7 @@ var ChunkGen = (function () {
             t = new Tile(1, c);
             this.chunk.tiles[i] = t;
         }
+        // Generate chambers
         var chambers = new Array();
         for(var i = (Math.random() * 5) + 3; i > 0; i--) {
             var chamber = new Chamber();
@@ -59,6 +199,7 @@ var ChunkGen = (function () {
             this.circle(chamber.x, chamber.y, chamber.size, 0);
         }
         this.chunk.chambers = chambers;
+        // Link chambers
         for(var i = chambers.length - 1; i > 0; i--) {
             var chamber = chambers[i];
             for(var j = chambers.length - 1; j > 0; j--) {
@@ -70,6 +211,7 @@ var ChunkGen = (function () {
                 }
             }
         }
+        // Tunnel areas
         var connections = [];
         for(var i = 0, tot = chambers.length; i < tot; i++) {
             connections = connections.concat(chambers[i].connections);
@@ -243,3 +385,4 @@ var Connection = (function () {
     return Connection;
 })();
 exports.Connection = Connection;
+//@ sourceMappingURL=Map.js.map

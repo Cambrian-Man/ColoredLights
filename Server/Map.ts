@@ -1,14 +1,27 @@
 /// <reference path="./Lights.ts" />
 var uuid = require('node-uuid');
 export class Map {
-    private chunks: Chunk[];
-    static chunkSize:number = 64;
+    private chunks: ChunkMap;
+    static chunkSize: number = 64;
 
-    constructor() {
-        this.chunks = new Array();
+    static public directions = {
+        north: { x: 0, y: -1 },
+        northeast: { x: 1, y: -1 },
+        east: { x: 1, y: 0 },
+        southeast: { x: 1, y: 1 },
+        south: { x: 0, y: 1 },
+        southwest: { x: -1, y: 1 },
+        west: { x: -1, y: 0 },
+        northwest: { x: -1, y: -1 }
     }
 
-    load(x: number, y: number): Chunk {
+    static public directionNames:string[] = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+
+    constructor() {
+        this.chunks = new ChunkMap();
+    }
+
+    load(x: number, y: number, callback?:Function) {
         var chunk: Chunk = new Chunk(x, y);
 
         if (chunk.tiles.length == 0) {
@@ -16,16 +29,70 @@ export class Map {
             generator.generate();
         }
 
-        return chunk;
+        for (var i = 0; i < 8; i++) {
+            var p: Point = <Point> Map.directions[Map.directionNames[i]];
+            var adjChunk: Chunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
+
+            if (adjChunk === null) {
+                chunk.adjacent.push(null);
+            }
+            else {
+                chunk.adjacent.push(adjChunk.id);
+            }
+        }
+
+        this.chunks.add(chunk);
+
+        if (callback) {
+            callback(chunk);
+        }
+    }
+
+    getChunk(id: string):Chunk {
+        return this.chunks.get(id);
+    }
+
+    activate(chunk: Chunk, callback?: Function) {
+        var adjChunks: Chunk[] = [];
+        var collect: Function = function (collectChunk: Chunk) => {
+            adjChunks.push(collectChunk);
+            if (adjChunks.length == 8) {
+                callback(adjChunks);
+            }
+        }
+
+        for (var i = 0, tot = chunk.adjacent.length; i < tot; i++) {
+            if (chunk.adjacent[i] === null) {
+                var p: Point = Map.directions[Map.directionNames[i]];
+                this.load(chunk.chunkX + p.x, chunk.chunkY + p.y, (adjChunk:Chunk) => {
+                    chunk.adjacent[i] = adjChunk.id;
+                    collect(adjChunk);
+                });
+            }
+        }
     }
 }
 
 export class Chunk {
     public tiles: Tile[];
     public chambers: Chamber[];
+    public active: bool;
 
-    constructor(public chunkX: number, public chunkY: number) {
+    constructor(public chunkX: number, public chunkY: number, public id?:string, public adjacent?:string[]) {
         this.tiles = new Array();
+
+
+        if (!id) {
+            this.id = uuid();
+        }
+
+        if (!adjacent) {
+            this.adjacent = [];
+        }
+    }
+
+    activate() {
+        this.active = true;
     }
 
     tileAt(x: number, y: number): Tile {
@@ -42,6 +109,61 @@ export class Chunk {
     }
 }
 
+class ChunkMap {
+    private chunks: Object = {};
+
+    add(chunk: Chunk) {
+        this.chunks[chunk.id] = chunk;
+    }
+
+    get (id: string): Chunk {
+        return <Chunk> this.chunks[id];
+    }
+
+    // Returns the chunk at a given position
+    // or null.
+    // May return null because a chunk is nonexistant or
+    // because it is unloaded!
+    getAt(x: number, y: number): Chunk {
+        var chunk: Chunk;
+        for (var prop in this.chunks) {
+            if (this.chunks.hasOwnProperty(prop)) {
+                chunk = <Chunk> this.chunks[prop];
+                if (chunk.chunkX == x && chunk.chunkY == y) {
+                    return chunk;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    remove(chunk: Chunk) {
+        if (this.chunks[chunk.id]) {
+            delete this.chunks[chunk.id];
+        }
+    }
+
+    contains(chunk: Chunk): bool {
+        if (this.chunks[chunk.id]) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    keys(): string[]{
+        var keys: string[] = [];
+        for (var prop in this.chunks) {
+            if (this.chunks.hasOwnProperty(prop)) {
+                keys.push(prop);
+            }
+        }
+
+        return keys;
+    }
+}
 
 class ChunkGen {
     constructor(public chunk: Chunk) {
@@ -219,11 +341,11 @@ export class Chamber {
         chamber.connections.push(new Connection(chamber, this));
     }
 
-    overlaps(chamber: Chamber): Boolean {
+    overlaps(chamber: Chamber): bool {
         return (Utils.distance(this, chamber) < this.size + chamber.size);
     }
 
-    overlapsAny(chambers: Chamber[]): Boolean {
+    overlapsAny(chambers: Chamber[]): bool {
         for (var i = chambers.length - 1; i > 0; i--) {
             if (this.overlaps(chambers[i])) {
                 return true;
@@ -233,7 +355,7 @@ export class Chamber {
         return false;
     }
 
-    linked(chamber: Chamber): Boolean {
+    linked(chamber: Chamber): bool {
         for (var i = this.connections.length - 1; i > 0; i--) {
             if (this.connections[i].end == chamber) {
                 return true;
@@ -243,7 +365,7 @@ export class Chamber {
         return false;
     }
 
-    hasLink(connection: Connection): Boolean {
+    hasLink(connection: Connection): bool {
         for (var i = this.connections.length - 1; i > 0; i--) {
             if (this.connections[i].equals(connection)) {
                 return true;
@@ -260,7 +382,7 @@ export class Connection {
         Utils.distance(start, end);
     }
 
-    equals(other: Connection): Boolean {
+    equals(other: Connection): bool {
         if (this.start == other.start && this.end == other.end) {
             return true;
         }
