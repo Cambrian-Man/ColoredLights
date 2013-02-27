@@ -1,5 +1,6 @@
 
 var socketio = require('socket.io')
+var Q = require('q');
 var map = require("./Map")
 var Server = (function () {
     function Server(io) {
@@ -22,13 +23,38 @@ var Server = (function () {
         socket.emit('connection', {
             id: id
         });
-        this.map.load(0, 0, function (chunk) {
-            _this.map.activate(chunk, function (adjChunks) {
-                _this.sendChunk(socket, chunk);
+        this.enterChunk(socket, 0, 0);
+        socket.on("enterChunk", function (data) {
+            return _this.enterChunk(socket, data.x, data.y);
+        });
+        socket.on("requestChunk", function (data) {
+            return _this.requestChunk(socket, data);
+        });
+    };
+    Server.prototype.enterChunk = function (socket, x, y) {
+        var _this = this;
+        this.map.load(x, y).then(function (chunk) {
+            _this.map.activate(chunk).then(function (adjChunks) {
+                _this.offerChunk(socket, chunk);
                 for(var i = 0, tot = adjChunks.length; i < tot; i++) {
-                    _this.sendChunk(socket, adjChunks[i]);
+                    _this.offerChunk(socket, adjChunks[i]);
                 }
             });
+        });
+    };
+    Server.prototype.offerChunk = function (socket, chunk) {
+        socket.emit('offerChunk', {
+            id: chunk.id,
+            x: chunk.chunkX,
+            y: chunk.chunkY
+        });
+    };
+    Server.prototype.requestChunk = function (socket, data) {
+        var _this = this;
+        var x = data.x;
+        var y = data.y;
+        this.map.load(x, y).then(function (chunk) {
+            _this.sendChunk(socket, chunk);
         });
     };
     Server.prototype.sendChunk = function (socket, chunk) {

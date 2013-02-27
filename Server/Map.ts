@@ -1,5 +1,8 @@
 /// <reference path="./Lights.ts" />
+/// <reference path="./ts-definitions/DefinitelyTyped/Q/q.d.ts" />
+var Q: QStatic = require('q');
 var uuid = require('node-uuid');
+
 export class Map {
     private chunks: ChunkMap;
     static chunkSize: number = 64;
@@ -21,55 +24,59 @@ export class Map {
         this.chunks = new ChunkMap();
     }
 
-    load(x: number, y: number, callback?:Function) {
-        var chunk: Chunk = new Chunk(x, y);
+    load(x: number, y: number):Qpromise {
+        var deferred: Qdeferred = Q.defer();
 
-        if (chunk.tiles.length == 0) {
+        var chunk: Chunk = this.chunks.getAt(x, y);
+
+        if (chunk) {
+            deferred.resolve(chunk);
+        }
+        else {
+            chunk = new Chunk(x, y);
             var generator: ChunkGen = new ChunkGen(chunk);
             generator.generate();
-        }
 
-        for (var i = 0; i < 8; i++) {
-            var p: Point = <Point> Map.directions[Map.directionNames[i]];
-            var adjChunk: Chunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
+            for (var i = 0; i < 8; i++) {
+                var p: Point = <Point> Map.directions[Map.directionNames[i]];
+                var adjChunk: Chunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
 
-            if (adjChunk === null) {
-                chunk.adjacent.push(null);
+                if (adjChunk === null) {
+                    chunk.adjacent.push(null);
+                }
+                else {
+                    chunk.adjacent.push(adjChunk.id);
+                }
             }
-            else {
-                chunk.adjacent.push(adjChunk.id);
-            }
+
+            deferred.resolve(chunk);
+            this.chunks.add(chunk);
         }
 
-        this.chunks.add(chunk);
-
-        if (callback) {
-            callback(chunk);
-        }
+        return deferred.promise;
     }
 
     getChunk(id: string):Chunk {
         return this.chunks.get(id);
     }
 
-    activate(chunk: Chunk, callback?: Function) {
-        var adjChunks: Chunk[] = [];
-        var collect: Function = function (collectChunk: Chunk) => {
-            adjChunks.push(collectChunk);
-            if (adjChunks.length == 8) {
-                callback(adjChunks);
-            }
+    activate(chunk: Chunk):Qpromise {
+        var collect: Function = function (i:number): Qpromise => {
+            var deferred :Qdeferred = Q.defer();
+            var p: Point = Map.directions[Map.directionNames[i]];
+
+            this.load(chunk.chunkX + p.x, chunk.chunkY + p.y).then((adjChunk:Chunk) => {
+                chunk.adjacent[i] = adjChunk.id;
+                deferred.resolve(adjChunk);
+            });
+
+            return deferred.promise;
         }
 
-        for (var i = 0, tot = chunk.adjacent.length; i < tot; i++) {
-            if (chunk.adjacent[i] === null) {
-                var p: Point = Map.directions[Map.directionNames[i]];
-                this.load(chunk.chunkX + p.x, chunk.chunkY + p.y, (adjChunk:Chunk) => {
-                    chunk.adjacent[i] = adjChunk.id;
-                    collect(adjChunk);
-                });
-            }
-        }
+        return Q.all([
+            collect(0), collect(1), collect(2), collect(3),
+            collect(4), collect(5), collect(6), collect(7)
+        ]);
     }
 }
 

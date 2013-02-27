@@ -70,6 +70,7 @@
       <DependentUpon>Map.ts</DependentUpon>
     </Content>
     <Content Include="ts-definitions\DefinitelyTyped\node\node.d.ts" />
+    <Content Include="ts-definitions\DefinitelyTyped\Q\q.d.ts" />
     <Content Include="ts-definitions\DefinitelyTyped\socket.io\socket.io.d.ts" />
   </ItemGroup>
   <ItemGroup>
@@ -78,6 +79,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="web.config" />
+    <Content Include="ts-definitions\DefinitelyTyped\Q\q.d.key" />
     <None Include="web.Debug.config">
       <DependentUpon>web.config</DependentUpon>
     </None>

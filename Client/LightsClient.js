@@ -13,6 +13,9 @@ var Lights = (function () {
         this.socket.on("chunk", function (data) {
             return _this.addChunk(data);
         });
+        this.socket.on("offerChunk", function (data) {
+            return _this.checkChunk(data);
+        });
         this.socket.on("connection", function (data) {
             return _this.connect(data);
         });
@@ -20,7 +23,7 @@ var Lights = (function () {
         };
     }
     Lights.chunkSize = 64;
-    Lights.tileSize = 16;
+    Lights.tileSize = 4;
     Lights.types = {
         empty: 0,
         wall: 1,
@@ -116,12 +119,19 @@ var Lights = (function () {
                 break;
         }
     };
+    Lights.prototype.checkChunk = function (data) {
+        if(!this.chunks[data.id]) {
+            this.socket.emit("requestChunk", {
+                x: data.x,
+                y: data.y
+            });
+        }
+    };
     Lights.prototype.addChunk = function (data) {
-        var newChunk = new Chunk(data.chunkX, data.chunkY, data.chunk, data.adjacent);
+        var newChunk = new Chunk(data.x, data.y, data.chunk, data.adjacent);
         this.stage.addChild(newChunk);
         if(!this.currentChunk) {
             this.currentChunk = newChunk;
-            console.log(newChunk.adjacent);
         }
         this.chunks[data.id] = newChunk;
     };
@@ -138,8 +148,46 @@ var Lights = (function () {
             this.camera.x += 10;
         }
         if(this.currentChunk) {
+            if((this.camera.x < 0 || this.camera.x > Lights.chunkSize * Lights.tileSize) || (this.camera.y < 0 || this.camera.y > Lights.chunkSize * Lights.tileSize)) {
+                this.currentChunk = this.getChunkByPixel(this.camera.x, this.camera.y);
+                this.socket.emit("enterChunk", {
+                    x: this.currentChunk.chunkX,
+                    y: this.currentChunk.chunkY
+                });
+            }
             this.camera.focus(this.currentChunk, this.camera.x, this.camera.y);
         }
+    };
+    Lights.prototype.getChunkByPixel = function (x, y) {
+        var pixelSize = Lights.chunkSize * Lights.tileSize;
+        var p = {
+            x: 0,
+            y: 0
+        };
+        if(x < 0) {
+            p.x = -1;
+        } else if(x > pixelSize) {
+            p.x = 1;
+        }
+        if(y < 0) {
+            p.y = -1;
+        } else if(y > pixelSize) {
+            p.y = 1;
+        }
+        return this.chunkAt(this.currentChunk.chunkX + p.x, this.currentChunk.chunkY + p.y);
+    };
+    Lights.prototype.chunkAt = function (x, y) {
+        console.log(this.chunks);
+        var chunk;
+        for(var prop in this.chunks) {
+            if(this.chunks.hasOwnProperty(prop)) {
+                chunk = this.chunks[prop];
+                if(chunk.chunkX == x && chunk.chunkY == y) {
+                    return chunk;
+                }
+            }
+        }
+        return null;
     };
     return Lights;
 })();
