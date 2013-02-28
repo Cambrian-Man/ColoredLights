@@ -23,7 +23,7 @@ var Lights = (function () {
         };
     }
     Lights.chunkSize = 64;
-    Lights.tileSize = 4;
+    Lights.tileSize = 8;
     Lights.types = {
         empty: 0,
         wall: 1,
@@ -125,6 +125,9 @@ var Lights = (function () {
                 x: data.x,
                 y: data.y
             });
+        } else {
+            this.chunks[data.id].adjacent = data.adjacent;
+            this.stage.addChild(this.chunks[data.id]);
         }
     };
     Lights.prototype.addChunk = function (data) {
@@ -148,14 +151,38 @@ var Lights = (function () {
             this.camera.x += 10;
         }
         if(this.currentChunk) {
-            if((this.camera.x < 0 || this.camera.x > Lights.chunkSize * Lights.tileSize) || (this.camera.y < 0 || this.camera.y > Lights.chunkSize * Lights.tileSize)) {
-                this.currentChunk = this.getChunkByPixel(this.camera.x, this.camera.y);
-                this.socket.emit("enterChunk", {
-                    x: this.currentChunk.chunkX,
-                    y: this.currentChunk.chunkY
-                });
+            var pixelSize = Lights.chunkSize * Lights.tileSize;
+            if((this.camera.x < 0 || this.camera.x > pixelSize) || (this.camera.y < 0 || this.camera.y > pixelSize)) {
+                this.changeChunk();
             }
             this.camera.focus(this.currentChunk, this.camera.x, this.camera.y);
+        }
+    };
+    Lights.prototype.changeChunk = function () {
+        var pixelSize = Lights.chunkSize * Lights.tileSize;
+        console.log(this.currentChunk.adjacent);
+        this.currentChunk = this.getChunkByPixel(this.camera.x, this.camera.y);
+        this.camera.x %= pixelSize;
+        if(this.camera.x < 0) {
+            this.camera.x += pixelSize;
+        }
+        this.camera.y %= pixelSize;
+        if(this.camera.y < 0) {
+            this.camera.y += pixelSize;
+        }
+        this.socket.emit("enterChunk", {
+            x: this.currentChunk.chunkX,
+            y: this.currentChunk.chunkY
+        });
+        // Remove distant chunks.
+        var otherChunk;
+        for(var prop in this.chunks) {
+            if(this.chunks.hasOwnProperty(prop)) {
+                otherChunk = this.chunks[prop];
+                if(Math.abs(otherChunk.chunkX - this.currentChunk.chunkX) > 1 || Math.abs(otherChunk.chunkY - this.currentChunk.chunkY) > 1) {
+                    this.stage.removeChild(otherChunk);
+                }
+            }
         }
     };
     Lights.prototype.getChunkByPixel = function (x, y) {
@@ -177,7 +204,6 @@ var Lights = (function () {
         return this.chunkAt(this.currentChunk.chunkX + p.x, this.currentChunk.chunkY + p.y);
     };
     Lights.prototype.chunkAt = function (x, y) {
-        console.log(this.chunks);
         var chunk;
         for(var prop in this.chunks) {
             if(this.chunks.hasOwnProperty(prop)) {
@@ -281,8 +307,10 @@ var Camera = (function () {
         for(var i = 0; i < 8; i++) {
             var p = Lights.directions[i];
             var adjChunk = this.game.chunks[chunk.adjacent[i]];
-            adjChunk.x = p.x * chunkPixels - x;
-            adjChunk.y = p.y * chunkPixels - y;
+            if(adjChunk) {
+                adjChunk.x = p.x * chunkPixels - x;
+                adjChunk.y = p.y * chunkPixels - y;
+            }
         }
     };
     return Camera;

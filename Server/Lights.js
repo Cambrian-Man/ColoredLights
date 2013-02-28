@@ -46,7 +46,8 @@ var Server = (function () {
         socket.emit('offerChunk', {
             id: chunk.id,
             x: chunk.chunkX,
-            y: chunk.chunkY
+            y: chunk.chunkY,
+            adjacent: chunk.adjacent
         });
     };
     Server.prototype.requestChunk = function (socket, data) {

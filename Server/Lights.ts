@@ -45,7 +45,7 @@ export class Server {
     }
 
     offerChunk(socket: Socket, chunk: map.Chunk) {
-        socket.emit('offerChunk', { id: chunk.id, x: chunk.chunkX, y: chunk.chunkY });
+        socket.emit('offerChunk', { id: chunk.id, x: chunk.chunkX, y: chunk.chunkY, adjacent: chunk.adjacent });
     }
 
     requestChunk(socket:Socket, data) {
