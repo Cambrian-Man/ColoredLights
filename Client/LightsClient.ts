@@ -153,8 +153,6 @@ class Lights {
     changeChunk() {
         var pixelSize = Lights.chunkSize * Lights.tileSize;
 
-        console.log(this.currentChunk.adjacent);
-
         this.currentChunk = this.getChunkByPixel(this.camera.x, this.camera.y);
         this.camera.x %= pixelSize;
         if (this.camera.x < 0) { this.camera.x += pixelSize; }
