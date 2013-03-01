@@ -62,12 +62,20 @@
     <TypeScriptCompile Include="Lights.ts" />
   </ItemGroup>
   <ItemGroup>
+    <TypeScriptCompile Include="DB.ts" />
+    <Content Include="DB.js">
+      <DependentUpon>DB.ts</DependentUpon>
+    </Content>
     <Content Include="Lights.js">
       <DependentUpon>Lights.ts</DependentUpon>
     </Content>
     <TypeScriptCompile Include="Map.ts" />
     <Content Include="Map.js">
       <DependentUpon>Map.ts</DependentUpon>
+    </Content>
+    <TypeScriptCompile Include="Server.ts" />
+    <Content Include="Server.js">
+      <DependentUpon>Server.ts</DependentUpon>
     </Content>
     <Content Include="ts-definitions\DefinitelyTyped\node\node.d.ts" />
     <Content Include="ts-definitions\DefinitelyTyped\Q\q.d.ts" />

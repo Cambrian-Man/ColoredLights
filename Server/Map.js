@@ -2,6 +2,8 @@
 /// <reference path="./ts-definitions/DefinitelyTyped/Q/q.d.ts" />
 var Q = require('q');
 var uuid = require('node-uuid');
+
+var server = require("./Server")
 var Map = (function () {
     function Map() {
         this.chunks = new ChunkMap();
@@ -60,6 +62,7 @@ var Map = (function () {
             chunk = new Chunk(x, y);
             var generator = new ChunkGen(chunk);
             generator.generate();
+            server.Server.db.saveChunk(chunk);
             for(var i = 0; i < 8; i++) {
                 var p = Map.directions[Map.directionNames[i]];
                 var adjChunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
@@ -124,8 +127,8 @@ var Chunk = (function () {
     };
     Chunk.prototype.toArray = function () {
         var codes = [];
-        for(var i = this.tiles.length - 1; i > 0; i--) {
-            codes[i] = this.tiles[i].toCode();
+        for(var i = 0, tot = this.tiles.length; i < tot; i++) {
+            codes.push(this.tiles[i].toCode());
         }
         return codes;
     };

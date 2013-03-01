@@ -2,6 +2,8 @@
 /// <reference path="./ts-definitions/DefinitelyTyped/Q/q.d.ts" />
 var Q: QStatic = require('q');
 var uuid = require('node-uuid');
+import db = module("./DB");
+import server = module("./Server");
 
 export class Map {
     private chunks: ChunkMap;
@@ -36,6 +38,7 @@ export class Map {
             chunk = new Chunk(x, y);
             var generator: ChunkGen = new ChunkGen(chunk);
             generator.generate();
+            server.Server.db.saveChunk(chunk);
 
             for (var i = 0; i < 8; i++) {
                 var p: Point = <Point> Map.directions[Map.directionNames[i]];
@@ -108,8 +111,8 @@ export class Chunk {
     
     toArray(): number[] {
         var codes: number[] = [];
-        for (var i = this.tiles.length - 1; i > 0; i--) {
-            codes[i] = this.tiles[i].toCode();
+        for (var i = 0, tot = this.tiles.length; i < tot; i++) {
+            codes.push(this.tiles[i].toCode());
         }
 
         return codes;
