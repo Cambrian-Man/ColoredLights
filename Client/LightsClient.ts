@@ -10,12 +10,14 @@ class Lights {
     socket: SocketNamespace;
 
     public camera: Camera;
-    currentChunk: Chunk;
 
     public chunks: Object;
+    public displayChunks: createjs.Container;
+    public players: Object;
+    public thisPlayer: Player;
 
     static chunkSize: number = 64;
-    static tileSize: number = 8;
+    static tileSize: number = 24;
     
     static types = {
         empty: 0,
@@ -51,18 +53,53 @@ class Lights {
     constructor(public canvas: HTMLCanvasElement) {
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
+        this.displayChunks = new createjs.Container();
+        this.stage.addChild(this.displayChunks);
 
         this.socket = <SocketNamespace> io.connect('http://localhost:3300');
         this.socket.on("chunk", (data) => this.addChunk(data));
         this.socket.on("offerChunk", (data) => this.checkChunk(data));
         this.socket.on("connection", (data) => this.connect(data));
+        this.socket.on("entered", (data) => {
+            var checkLoaded: Function = function ():bool => {
+                var chunk: Chunk = this.chunks[data['chunk']];
+                if (!chunk) {
+                    return false;
+                }
+                else {
+                    for (var i = 0; i < chunk.adjacent.length; i++) {
+                        if (!chunk.adjacent[i]) {
+                            return false;
+                        }
+                        else if (!this.chunks[chunk.adjacent[i]]) {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+
+            var interval: number = setInterval(() => {
+                if (checkLoaded()) {
+                    this.enterChunk(data['chunk']);
+                    clearInterval(interval);
+                }
+            }, 500);
+        });
 
         this.chunks = {};
+        this.players = {};
     }
 
     connect(data) {
         window.addEventListener("keydown", (event: KeyboardEvent) => this.keyDown(event));
         window.addEventListener("keyup", (event: KeyboardEvent) => this.keyUp(event));
+
+        this.thisPlayer = new Player(data.id);
+        this.players[data.id] = this.thisPlayer;
+        this.thisPlayer.x = 100;
+        this.thisPlayer.y = 100;
 
         createjs.Ticker.addListener((event) => this.update(event));
     }
@@ -107,16 +144,14 @@ class Lights {
         }
         else {
             this.chunks[data.id].adjacent = data.adjacent;
-            this.stage.addChild(this.chunks[data.id]);
         }
     }
 
     addChunk(data) {
         var newChunk: Chunk = new Chunk(data.x, data.y, data.chunk, data.adjacent);
-        this.stage.addChild(newChunk);
 
-        if (!this.currentChunk) {
-            this.currentChunk = newChunk;
+        if (!this.thisPlayer.chunk) {
+            this.thisPlayer.chunk = newChunk;
         }
 
         this.chunks[data.id] = newChunk;
@@ -126,49 +161,58 @@ class Lights {
         this.stage.update();
 
         if (Lights.keys.up) {
-            this.camera.y -= 10;
+            this.thisPlayer.y -= 10;
         }
         else if (Lights.keys.down) {
-            this.camera.y += 10;
+            this.thisPlayer.y += 10;
         }
 
         if (Lights.keys.left) {
-            this.camera.x -= 10;
+            this.thisPlayer.x -= 10;
         }
         else if (Lights.keys.right) {
-            this.camera.x += 10;
+            this.thisPlayer.x += 10;
         }
 
-        if (this.currentChunk) {
+        if (this.thisPlayer.chunk) {
             var pixelSize = Lights.chunkSize * Lights.tileSize;
-            if ((this.camera.x < 0 || this.camera.x > pixelSize) ||
-                (this.camera.y < 0 || this.camera.y > pixelSize)) {
+            if ((this.thisPlayer.x < 0 || this.thisPlayer.x > pixelSize) ||
+                (this.thisPlayer.y < 0 || this.thisPlayer.y > pixelSize)) {
                 this.changeChunk();
             }
 
-            this.camera.focus(this.currentChunk, this.camera.x, this.camera.y);
+            this.camera.focus(this.thisPlayer);
         }
     }
 
     changeChunk() {
         var pixelSize = Lights.chunkSize * Lights.tileSize;
+        var chunk: Chunk = this.getChunkByPixel(this.thisPlayer.x, this.thisPlayer.y);
+        this.thisPlayer.x %= pixelSize;
+        if (this.thisPlayer.x < 0) { this.thisPlayer.x += pixelSize; }
+        this.thisPlayer.y %= pixelSize;
+        if (this.thisPlayer.y < 0) { this.thisPlayer.y += pixelSize; }
 
-        this.currentChunk = this.getChunkByPixel(this.camera.x, this.camera.y);
-        this.camera.x %= pixelSize;
-        if (this.camera.x < 0) { this.camera.x += pixelSize; }
-        this.camera.y %= pixelSize;
-        if (this.camera.y < 0) { this.camera.y += pixelSize; }
+        this.socket.emit("enterChunk", { x: chunk.chunkX, y: chunk.chunkY });
+    }
 
-        this.socket.emit("enterChunk", { x: this.currentChunk.chunkX, y: this.currentChunk.chunkY });
+    enterChunk(id: string) {
+        var pixelSize = Lights.chunkSize * Lights.tileSize;
+        this.displayChunks.removeAllChildren();
 
-        // Remove distant chunks.
-        var otherChunk: Chunk;
-        for (var prop in this.chunks) {
-            if (this.chunks.hasOwnProperty(prop)) {
-                otherChunk = this.chunks[prop];
-                if (Math.abs(otherChunk.chunkX - this.currentChunk.chunkX) > 1 || Math.abs(otherChunk.chunkY - this.currentChunk.chunkY) > 1){
-                    this.stage.removeChild(otherChunk);
-                }
+        this.thisPlayer.chunk = this.chunks[id];
+        this.displayChunks.addChild(this.thisPlayer.chunk);
+
+        this.thisPlayer.chunk.x = 0;
+        this.thisPlayer.chunk.y = 0;
+
+        for (var i = 0; i < 8; i++) {
+            var p: Point = Lights.directions[i];
+            var adjChunk: Chunk = this.chunks[this.thisPlayer.chunk.adjacent[i]];
+            this.displayChunks.addChild(adjChunk);
+            if (adjChunk) {
+                adjChunk.x = p.x * pixelSize;
+                adjChunk.y = p.y * pixelSize;
             }
         }
     }
@@ -190,7 +234,7 @@ class Lights {
             p.y = 1;
         }
 
-        return this.chunkAt(this.currentChunk.chunkX + p.x, this.currentChunk.chunkY + p.y);
+        return this.chunkAt(this.thisPlayer.chunk.chunkX + p.x, this.thisPlayer.chunk.chunkY + p.y);
     }
 
     chunkAt(x: number, y: number): Chunk {
@@ -221,7 +265,7 @@ class Chunk extends createjs.Shape {
     generateGraphics() {
         this.graphics.beginFill("#000").rect(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
 
-        for (var i = this.data.length - 1; i > 0; i--) {
+        for (var i = 0; i < this.data.length; i++) {
             var t: Tile = Tile.fromCode(this.data[i]);
             if (t.type == Lights.types.empty) {
                 continue;
@@ -282,6 +326,15 @@ class Color {
     }
 }
 
+class Player {
+    public x: number;
+    public y: number;
+    public chunk: Chunk;
+
+    constructor(public id) {
+    }
+}
+
 class Camera {
     public x: number;
     public y: number;
@@ -291,22 +344,9 @@ class Camera {
         this.y = 0;
     }
 
-    focus(chunk: Chunk, x: number, y: number) {
-        var chunkX: number = chunk.chunkX;
-        var chunkY: number = chunk.chunkY;
-        var chunkPixels: number = Lights.chunkSize * Lights.tileSize;
-
-        chunk.x = -x;
-        chunk.y = -y;
-
-        for (var i = 0; i < 8; i++) {
-            var p: Point = Lights.directions[i];
-            var adjChunk: Chunk = this.game.chunks[chunk.adjacent[i]];
-            if (adjChunk) {
-                adjChunk.x = p.x * chunkPixels - x;
-                adjChunk.y = p.y * chunkPixels - y;
-            }
-        }
+    focus(player:Player) {
+        this.game.displayChunks.x = -player.x + this.x;
+        this.game.displayChunks.y = -player.y + this.y;
     }
 }
 

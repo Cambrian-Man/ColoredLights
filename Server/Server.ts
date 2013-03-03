@@ -17,8 +17,8 @@ export class Server {
 
     }
 
-    start(io: SocketManager) {
-        Server.db = new db.DB('ds043967.mongolab.com', 43967, () => {
+    start(config:Object, io: SocketManager) {
+        Server.db = new db.DB(config['db'], () => {
             this.map = new map.Map();
             io.sockets.on("connection", (socket: Socket) => this.connection(socket));
         });
@@ -40,9 +40,11 @@ export class Server {
         this.map.load(x, y).then((chunk: map.Chunk) => {
             this.map.activate(chunk).then((adjChunks: map.Chunk[]) => {
                 this.offerChunk(socket, chunk);
-                for (var i = 0, tot = adjChunks.length; i < tot; i++) {
+                for (var i = 0; i < adjChunks.length; i++) {
                     this.offerChunk(socket, adjChunks[i]);
                 }
+
+                socket.emit("entered", { chunk: chunk.id });
             });
         });
     }

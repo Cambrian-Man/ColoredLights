@@ -10,11 +10,9 @@ export class DB {
 
     private schemaBases: Object = {
         Chunk: {
-            id: String,
             x: Number,
             y: Number,
-            adjacent: [String],
-            tiles: [Number]
+            tiles: Buffer
         }
     };
 
@@ -22,14 +20,8 @@ export class DB {
     private models: Object = {};
     private schemaNames: string[] = ['Chunk'];
 
-    constructor(host: string, port: number, callback?: Function) {
-        var options = {
-            db: 'lights',
-            user: 'lights_admin',
-            pass: 'royGbivMaxwell'
-        }
-
-        mongoose.connect('mongodb://lights_admin:royGbivMaxwell@ds043967.mongolab.com:43967/lights');
+    constructor(uri:string, callback?: Function) {
+        mongoose.connect(uri);
         this.db = mongoose.connection;
         this.db.on('error', console.error.bind(console, 'connection error:'));
         this.db.once('open', () => {
@@ -40,7 +32,6 @@ export class DB {
             }
         });
     }
-
 
     createSchemas() {
         var name: string;
@@ -53,25 +44,53 @@ export class DB {
     }
 
     saveChunk(chunk: map.Chunk) {
-        var chunkSave = new this.models['Chunk']({
-            id: chunk.id,
-            x: chunk.chunkX,
-            y: chunk.chunkY,
-            adjacent: chunk.adjacent,
-            tiles: chunk.toArray()
-        });
+        chunk.compressTiles().then((tileBuffer: NodeBuffer) => {
+            var chunkSave = new this.models['Chunk']({
+                _id: chunk.id,
+                x: chunk.chunkX,
+                y: chunk.chunkY,
+                tiles: tileBuffer
+            });
 
-        chunkSave.save((err, chunkSave) => {
-            if (err) {
-                console.error('save error', err);
-            }
+            chunkSave.save((err, chunkSave) => {
+                if (err) {
+                    console.error('save error', err);
+                }
+            });
         });
+    }
+
+    updateAdjacent(chunk: map.Chunk) {
+        this.models['Chunk'].findOneAndUpdate({ _id: chunk.id }, { $set: { adjacent: chunk.adjacent } });
     }
 
     getChunk(props: { id?: string; x?: number; y?: number; }): Qpromise {
         var deferred: Qdeferred = Q.defer();
+        var query: Object;
+
         if (props.id) {
+            query = { _id: props.id };
         }
+        else {
+            query = { x: props.x, y: props.y };
+        }
+        this.models['Chunk'].count(query, (err, count) => {
+            if (count == 0) {
+                deferred.resolve(null);
+            }
+            else {
+                this.models['Chunk'].findOne(query, (err, result) => {
+                    if (err) {
+                        deferred.reject(err);
+                    }
+                    else if (result) {
+                        deferred.resolve(result);
+                    }
+                });
+            }
+        });
+
+
 
         return deferred.promise;
     }

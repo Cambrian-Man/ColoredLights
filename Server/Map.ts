@@ -2,8 +2,10 @@
 /// <reference path="./ts-definitions/DefinitelyTyped/Q/q.d.ts" />
 var Q: QStatic = require('q');
 var uuid = require('node-uuid');
+var mongoose = require('mongoose');
 import db = module("./DB");
 import server = module("./Server");
+import zlib = module("zlib");
 
 export class Map {
     private chunks: ChunkMap;
@@ -35,28 +37,50 @@ export class Map {
             deferred.resolve(chunk);
         }
         else {
-            chunk = new Chunk(x, y);
-            var generator: ChunkGen = new ChunkGen(chunk);
-            generator.generate();
-            server.Server.db.saveChunk(chunk);
-
-            for (var i = 0; i < 8; i++) {
-                var p: Point = <Point> Map.directions[Map.directionNames[i]];
-                var adjChunk: Chunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
-
-                if (adjChunk === null) {
-                    chunk.adjacent.push(null);
+            server.Server.db.getChunk({ x: x, y: y }).then((chunkResult) => {
+                if (!chunkResult) {
+                    chunk = new Chunk(x, y);
+                    var generator: ChunkGen = new ChunkGen(chunk);
+                    generator.generate();
+                    chunk.save();
+                    chunk.adjacent = this.getAdjacent(chunk);
+                    deferred.resolve(chunk);
                 }
                 else {
-                    chunk.adjacent.push(adjChunk.id);
+                    chunk = new Chunk(chunkResult['x'], chunkResult['y'], <string> chunkResult['_id']);
+                    chunk.loadTiles(chunkResult['tiles']).then((tiles: Tile[]) => {
+                        chunk.tiles = tiles;
+                        chunk.adjacent = this.getAdjacent(chunk);
+                        deferred.resolve(chunk);
+                    });
                 }
-            }
 
-            deferred.resolve(chunk);
-            this.chunks.add(chunk);
+                this.chunks.add(chunk);
+            },
+            (err) => {
+                console.log(err);
+            });
+            
         }
 
         return deferred.promise;
+    }
+
+    getAdjacent(chunk: Chunk): string[] {
+        var adjacent: string[] = [];
+        for (var i = 0; i < 8; i++) {
+            var p: Point = <Point> Map.directions[Map.directionNames[i]];
+            var adjChunk: Chunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
+
+            if (adjChunk === null) {
+                adjacent.push(null);
+            }
+            else {
+                adjacent.push(adjChunk.id);
+            }
+        }
+
+        return adjacent;
     }
 
     getChunk(id: string):Chunk {
@@ -87,18 +111,16 @@ export class Chunk {
     public tiles: Tile[];
     public chambers: Chamber[];
     public active: bool;
+    public adjacent: string[];
 
-    constructor(public chunkX: number, public chunkY: number, public id?:string, public adjacent?:string[]) {
+    constructor(public chunkX: number, public chunkY: number, public id?:string) {
         this.tiles = new Array();
 
-
         if (!id) {
-            this.id = uuid();
+            this.id = new mongoose.Types.ObjectId();
         }
 
-        if (!adjacent) {
-            this.adjacent = [];
-        }
+        this.adjacent = [];
     }
 
     activate() {
@@ -111,11 +133,47 @@ export class Chunk {
     
     toArray(): number[] {
         var codes: number[] = [];
-        for (var i = 0, tot = this.tiles.length; i < tot; i++) {
+        for (var i = 0; i < this.tiles.length; i++) {
             codes.push(this.tiles[i].toCode());
         }
 
         return codes;
+    }
+
+    save() {
+        server.Server.db.saveChunk(this);
+    }
+
+    compressTiles(): Qpromise {
+        var deferred = Q.defer();
+        var tileNumbers = this.toArray();
+        var tileBuf = new Buffer(tileNumbers.length * 4);
+        for (var i = 0; i < tileNumbers.length; i++) {
+            tileBuf.writeUInt32BE(tileNumbers[i], i * 4);
+        }
+
+        zlib.deflate(tileBuf, (err: Error, buffer: NodeBuffer) => {
+            if (!err) {
+                deferred.resolve(buffer);
+            }
+        });
+        
+        return deferred.promise;
+    }
+
+    loadTiles(tileBuffer: NodeBuffer): Qpromise {
+        var deferred = Q.defer();
+        var tiles: Tile[] = [];
+
+        zlib.inflate(tileBuffer, (error: Error, result: NodeBuffer) => {
+            var totalTiles = Math.pow(Map.chunkSize, 2);
+            for (var i = 0; i < totalTiles; i++) {
+                tiles.push(Tile.fromCode(result.readUInt32BE(i * 4)));
+            }
+            deferred.resolve(tiles);
+        });
+
+        return deferred.promise;
     }
 }
 
@@ -356,7 +414,7 @@ export class Chamber {
     }
 
     overlapsAny(chambers: Chamber[]): bool {
-        for (var i = chambers.length - 1; i > 0; i--) {
+        for (var i = 0; i < chambers.length; i++) {
             if (this.overlaps(chambers[i])) {
                 return true;
             }
@@ -366,7 +424,7 @@ export class Chamber {
     }
 
     linked(chamber: Chamber): bool {
-        for (var i = this.connections.length - 1; i > 0; i--) {
+        for (var i = 0; i < this.connections.length; i++) {
             if (this.connections[i].end == chamber) {
                 return true;
             }
@@ -376,7 +434,7 @@ export class Chamber {
     }
 
     hasLink(connection: Connection): bool {
-        for (var i = this.connections.length - 1; i > 0; i--) {
+        for (var i = 0; i < this.connections.length; i++) {
             if (this.connections[i].equals(connection)) {
                 return true;
             }

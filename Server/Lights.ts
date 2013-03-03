@@ -2,6 +2,7 @@
 /// <reference path="./ts-definitions/DefinitelyTyped/socket.io/socket.io.d.ts" />
 
 import http = module('http');
+import fs = module('fs');
 import socketio = module('socket.io');
 import server = module('./Server');
 
@@ -11,4 +12,9 @@ io.configure(function () {
 });
 
 var game: server.Server = new server.Server();
-game.start(io);
+fs.readFile('lights-config.json', (err: Error, data: NodeBuffer) => {
+    if (err) { throw err; }
+    var config = JSON.parse(<any> data);
+    game.start(config, io);
+});
+

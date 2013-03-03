@@ -11,9 +11,9 @@ var Server = (function () {
         this.players = {
         };
     }
-    Server.prototype.start = function (io) {
+    Server.prototype.start = function (config, io) {
         var _this = this;
-        Server.db = new db.DB('ds043967.mongolab.com', 43967, function () {
+        Server.db = new db.DB(config['db'], function () {
             _this.map = new map.Map();
             io.sockets.on("connection", function (socket) {
                 return _this.connection(socket);
@@ -41,9 +41,12 @@ var Server = (function () {
         this.map.load(x, y).then(function (chunk) {
             _this.map.activate(chunk).then(function (adjChunks) {
                 _this.offerChunk(socket, chunk);
-                for(var i = 0, tot = adjChunks.length; i < tot; i++) {
+                for(var i = 0; i < adjChunks.length; i++) {
                     _this.offerChunk(socket, adjChunks[i]);
                 }
+                socket.emit("entered", {
+                    chunk: chunk.id
+                });
             });
         });
     };

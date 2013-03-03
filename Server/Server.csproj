@@ -88,6 +88,7 @@
   <ItemGroup>
     <Content Include="web.config" />
     <Content Include="ts-definitions\DefinitelyTyped\Q\q.d.key" />
+    <Content Include="lights-config.json" />
     <None Include="web.Debug.config">
       <DependentUpon>web.config</DependentUpon>
     </None>

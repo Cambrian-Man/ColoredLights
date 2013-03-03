@@ -2,8 +2,10 @@
 /// <reference path="./ts-definitions/DefinitelyTyped/Q/q.d.ts" />
 var Q = require('q');
 var uuid = require('node-uuid');
+var mongoose = require('mongoose');
 
 var server = require("./Server")
+var zlib = require("zlib")
 var Map = (function () {
     function Map() {
         this.chunks = new ChunkMap();
@@ -54,28 +56,50 @@ var Map = (function () {
         "northwest"
     ];
     Map.prototype.load = function (x, y) {
+        var _this = this;
         var deferred = Q.defer();
         var chunk = this.chunks.getAt(x, y);
         if(chunk) {
             deferred.resolve(chunk);
         } else {
-            chunk = new Chunk(x, y);
-            var generator = new ChunkGen(chunk);
-            generator.generate();
-            server.Server.db.saveChunk(chunk);
-            for(var i = 0; i < 8; i++) {
-                var p = Map.directions[Map.directionNames[i]];
-                var adjChunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
-                if(adjChunk === null) {
-                    chunk.adjacent.push(null);
+            server.Server.db.getChunk({
+                x: x,
+                y: y
+            }).then(function (chunkResult) {
+                if(!chunkResult) {
+                    chunk = new Chunk(x, y);
+                    var generator = new ChunkGen(chunk);
+                    generator.generate();
+                    chunk.save();
+                    chunk.adjacent = _this.getAdjacent(chunk);
+                    deferred.resolve(chunk);
                 } else {
-                    chunk.adjacent.push(adjChunk.id);
+                    chunk = new Chunk(chunkResult['x'], chunkResult['y'], chunkResult['_id']);
+                    chunk.loadTiles(chunkResult['tiles']).then(function (tiles) {
+                        chunk.tiles = tiles;
+                        chunk.adjacent = _this.getAdjacent(chunk);
+                        deferred.resolve(chunk);
+                    });
                 }
-            }
-            deferred.resolve(chunk);
-            this.chunks.add(chunk);
+                _this.chunks.add(chunk);
+            }, function (err) {
+                console.log(err);
+            });
         }
         return deferred.promise;
+    };
+    Map.prototype.getAdjacent = function (chunk) {
+        var adjacent = [];
+        for(var i = 0; i < 8; i++) {
+            var p = Map.directions[Map.directionNames[i]];
+            var adjChunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
+            if(adjChunk === null) {
+                adjacent.push(null);
+            } else {
+                adjacent.push(adjChunk.id);
+            }
+        }
+        return adjacent;
     };
     Map.prototype.getChunk = function (id) {
         return this.chunks.get(id);
@@ -106,18 +130,15 @@ var Map = (function () {
 })();
 exports.Map = Map;
 var Chunk = (function () {
-    function Chunk(chunkX, chunkY, id, adjacent) {
+    function Chunk(chunkX, chunkY, id) {
         this.chunkX = chunkX;
         this.chunkY = chunkY;
         this.id = id;
-        this.adjacent = adjacent;
         this.tiles = new Array();
         if(!id) {
-            this.id = uuid();
+            this.id = new mongoose.Types.ObjectId();
         }
-        if(!adjacent) {
-            this.adjacent = [];
-        }
+        this.adjacent = [];
     }
     Chunk.prototype.activate = function () {
         this.active = true;
@@ -127,10 +148,39 @@ var Chunk = (function () {
     };
     Chunk.prototype.toArray = function () {
         var codes = [];
-        for(var i = 0, tot = this.tiles.length; i < tot; i++) {
+        for(var i = 0; i < this.tiles.length; i++) {
             codes.push(this.tiles[i].toCode());
         }
         return codes;
+    };
+    Chunk.prototype.save = function () {
+        server.Server.db.saveChunk(this);
+    };
+    Chunk.prototype.compressTiles = function () {
+        var deferred = Q.defer();
+        var tileNumbers = this.toArray();
+        var tileBuf = new Buffer(tileNumbers.length * 4);
+        for(var i = 0; i < tileNumbers.length; i++) {
+            tileBuf.writeUInt32BE(tileNumbers[i], i * 4);
+        }
+        zlib.deflate(tileBuf, function (err, buffer) {
+            if(!err) {
+                deferred.resolve(buffer);
+            }
+        });
+        return deferred.promise;
+    };
+    Chunk.prototype.loadTiles = function (tileBuffer) {
+        var deferred = Q.defer();
+        var tiles = [];
+        zlib.inflate(tileBuffer, function (error, result) {
+            var totalTiles = Math.pow(Map.chunkSize, 2);
+            for(var i = 0; i < totalTiles; i++) {
+                tiles.push(Tile.fromCode(result.readUInt32BE(i * 4)));
+            }
+            deferred.resolve(tiles);
+        });
+        return deferred.promise;
     };
     return Chunk;
 })();
@@ -353,7 +403,7 @@ var Chamber = (function () {
         return (Utils.distance(this, chamber) < this.size + chamber.size);
     };
     Chamber.prototype.overlapsAny = function (chambers) {
-        for(var i = chambers.length - 1; i > 0; i--) {
+        for(var i = 0; i < chambers.length; i++) {
             if(this.overlaps(chambers[i])) {
                 return true;
             }
@@ -361,7 +411,7 @@ var Chamber = (function () {
         return false;
     };
     Chamber.prototype.linked = function (chamber) {
-        for(var i = this.connections.length - 1; i > 0; i--) {
+        for(var i = 0; i < this.connections.length; i++) {
             if(this.connections[i].end == chamber) {
                 return true;
             }
@@ -369,7 +419,7 @@ var Chamber = (function () {
         return false;
     };
     Chamber.prototype.hasLink = function (connection) {
-        for(var i = this.connections.length - 1; i > 0; i--) {
+        for(var i = 0; i < this.connections.length; i++) {
             if(this.connections[i].equals(connection)) {
                 return true;
             }

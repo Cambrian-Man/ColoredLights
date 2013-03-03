@@ -4,19 +4,13 @@ var mongoose = require('mongoose');
 var Q = require('q');
 
 var DB = (function () {
-    function DB(host, port, callback) {
+    function DB(uri, callback) {
         var _this = this;
         this.schemaBases = {
             Chunk: {
-                id: String,
                 x: Number,
                 y: Number,
-                adjacent: [
-                    String
-                ],
-                tiles: [
-                    Number
-                ]
+                tiles: Buffer
             }
         };
         this.schemas = {
@@ -26,12 +20,7 @@ var DB = (function () {
         this.schemaNames = [
             'Chunk'
         ];
-        var options = {
-            db: 'lights',
-            user: 'lights_admin',
-            pass: 'royGbivMaxwell'
-        };
-        mongoose.connect('mongodb://lights_admin:royGbivMaxwell@ds043967.mongolab.com:43967/lights');
+        mongoose.connect(uri);
         this.db = mongoose.connection;
         this.db.on('error', console.error.bind(console, 'connection error:'));
         this.db.once('open', function () {
@@ -50,23 +39,57 @@ var DB = (function () {
         }
     };
     DB.prototype.saveChunk = function (chunk) {
-        var chunkSave = new this.models['Chunk']({
-            id: chunk.id,
-            x: chunk.chunkX,
-            y: chunk.chunkY,
-            adjacent: chunk.adjacent,
-            tiles: chunk.toArray()
+        var _this = this;
+        chunk.compressTiles().then(function (tileBuffer) {
+            var chunkSave = new _this.models['Chunk']({
+                _id: chunk.id,
+                x: chunk.chunkX,
+                y: chunk.chunkY,
+                tiles: tileBuffer
+            });
+            chunkSave.save(function (err, chunkSave) {
+                if(err) {
+                    console.error('save error', err);
+                }
+            });
         });
-        chunkSave.save(function (err, chunkSave) {
-            if(err) {
-                console.error('save error', err);
+    };
+    DB.prototype.updateAdjacent = function (chunk) {
+        this.models['Chunk'].findOneAndUpdate({
+            _id: chunk.id
+        }, {
+            $set: {
+                adjacent: chunk.adjacent
             }
         });
     };
     DB.prototype.getChunk = function (props) {
+        var _this = this;
         var deferred = Q.defer();
+        var query;
         if(props.id) {
+            query = {
+                _id: props.id
+            };
+        } else {
+            query = {
+                x: props.x,
+                y: props.y
+            };
         }
+        this.models['Chunk'].count(query, function (err, count) {
+            if(count == 0) {
+                deferred.resolve(null);
+            } else {
+                _this.models['Chunk'].findOne(query, function (err, result) {
+                    if(err) {
+                        deferred.reject(err);
+                    } else if(result) {
+                        deferred.resolve(result);
+                    }
+                });
+            }
+        });
         return deferred.promise;
     };
     return DB;

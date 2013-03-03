@@ -9,6 +9,8 @@ var Lights = (function () {
         var _this = this;
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
+        this.displayChunks = new createjs.Container();
+        this.stage.addChild(this.displayChunks);
         this.socket = io.connect('http://localhost:3300');
         this.socket.on("chunk", function (data) {
             return _this.addChunk(data);
@@ -19,11 +21,36 @@ var Lights = (function () {
         this.socket.on("connection", function (data) {
             return _this.connect(data);
         });
+        this.socket.on("entered", function (data) {
+            var checkLoaded = function () {
+                var chunk = _this.chunks[data['chunk']];
+                if(!chunk) {
+                    return false;
+                } else {
+                    for(var i = 0; i < chunk.adjacent.length; i++) {
+                        if(!chunk.adjacent[i]) {
+                            return false;
+                        } else if(!_this.chunks[chunk.adjacent[i]]) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            };
+            var interval = setInterval(function () {
+                if(checkLoaded()) {
+                    _this.enterChunk(data['chunk']);
+                    clearInterval(interval);
+                }
+            }, 500);
+        });
         this.chunks = {
+        };
+        this.players = {
         };
     }
     Lights.chunkSize = 64;
-    Lights.tileSize = 8;
+    Lights.tileSize = 24;
     Lights.types = {
         empty: 0,
         wall: 1,
@@ -83,6 +110,10 @@ var Lights = (function () {
         window.addEventListener("keyup", function (event) {
             return _this.keyUp(event);
         });
+        this.thisPlayer = new Player(data.id);
+        this.players[data.id] = this.thisPlayer;
+        this.thisPlayer.x = 100;
+        this.thisPlayer.y = 100;
         createjs.Ticker.addListener(function (event) {
             return _this.update(event);
         });
@@ -127,61 +158,65 @@ var Lights = (function () {
             });
         } else {
             this.chunks[data.id].adjacent = data.adjacent;
-            this.stage.addChild(this.chunks[data.id]);
         }
     };
     Lights.prototype.addChunk = function (data) {
         var newChunk = new Chunk(data.x, data.y, data.chunk, data.adjacent);
-        this.stage.addChild(newChunk);
-        if(!this.currentChunk) {
-            this.currentChunk = newChunk;
+        if(!this.thisPlayer.chunk) {
+            this.thisPlayer.chunk = newChunk;
         }
         this.chunks[data.id] = newChunk;
     };
     Lights.prototype.update = function (event) {
         this.stage.update();
         if(Lights.keys.up) {
-            this.camera.y -= 10;
+            this.thisPlayer.y -= 10;
         } else if(Lights.keys.down) {
-            this.camera.y += 10;
+            this.thisPlayer.y += 10;
         }
         if(Lights.keys.left) {
-            this.camera.x -= 10;
+            this.thisPlayer.x -= 10;
         } else if(Lights.keys.right) {
-            this.camera.x += 10;
+            this.thisPlayer.x += 10;
         }
-        if(this.currentChunk) {
+        if(this.thisPlayer.chunk) {
             var pixelSize = Lights.chunkSize * Lights.tileSize;
-            if((this.camera.x < 0 || this.camera.x > pixelSize) || (this.camera.y < 0 || this.camera.y > pixelSize)) {
+            if((this.thisPlayer.x < 0 || this.thisPlayer.x > pixelSize) || (this.thisPlayer.y < 0 || this.thisPlayer.y > pixelSize)) {
                 this.changeChunk();
             }
-            this.camera.focus(this.currentChunk, this.camera.x, this.camera.y);
+            this.camera.focus(this.thisPlayer);
         }
     };
     Lights.prototype.changeChunk = function () {
         var pixelSize = Lights.chunkSize * Lights.tileSize;
-        console.log(this.currentChunk.adjacent);
-        this.currentChunk = this.getChunkByPixel(this.camera.x, this.camera.y);
-        this.camera.x %= pixelSize;
-        if(this.camera.x < 0) {
-            this.camera.x += pixelSize;
+        var chunk = this.getChunkByPixel(this.thisPlayer.x, this.thisPlayer.y);
+        this.thisPlayer.x %= pixelSize;
+        if(this.thisPlayer.x < 0) {
+            this.thisPlayer.x += pixelSize;
         }
-        this.camera.y %= pixelSize;
-        if(this.camera.y < 0) {
-            this.camera.y += pixelSize;
+        this.thisPlayer.y %= pixelSize;
+        if(this.thisPlayer.y < 0) {
+            this.thisPlayer.y += pixelSize;
         }
         this.socket.emit("enterChunk", {
-            x: this.currentChunk.chunkX,
-            y: this.currentChunk.chunkY
+            x: chunk.chunkX,
+            y: chunk.chunkY
         });
-        // Remove distant chunks.
-        var otherChunk;
-        for(var prop in this.chunks) {
-            if(this.chunks.hasOwnProperty(prop)) {
-                otherChunk = this.chunks[prop];
-                if(Math.abs(otherChunk.chunkX - this.currentChunk.chunkX) > 1 || Math.abs(otherChunk.chunkY - this.currentChunk.chunkY) > 1) {
-                    this.stage.removeChild(otherChunk);
-                }
+    };
+    Lights.prototype.enterChunk = function (id) {
+        var pixelSize = Lights.chunkSize * Lights.tileSize;
+        this.displayChunks.removeAllChildren();
+        this.thisPlayer.chunk = this.chunks[id];
+        this.displayChunks.addChild(this.thisPlayer.chunk);
+        this.thisPlayer.chunk.x = 0;
+        this.thisPlayer.chunk.y = 0;
+        for(var i = 0; i < 8; i++) {
+            var p = Lights.directions[i];
+            var adjChunk = this.chunks[this.thisPlayer.chunk.adjacent[i]];
+            this.displayChunks.addChild(adjChunk);
+            if(adjChunk) {
+                adjChunk.x = p.x * pixelSize;
+                adjChunk.y = p.y * pixelSize;
             }
         }
     };
@@ -201,7 +236,7 @@ var Lights = (function () {
         } else if(y > pixelSize) {
             p.y = 1;
         }
-        return this.chunkAt(this.currentChunk.chunkX + p.x, this.currentChunk.chunkY + p.y);
+        return this.chunkAt(this.thisPlayer.chunk.chunkX + p.x, this.thisPlayer.chunk.chunkY + p.y);
     };
     Lights.prototype.chunkAt = function (x, y) {
         var chunk;
@@ -229,7 +264,7 @@ var Chunk = (function (_super) {
     }
     Chunk.prototype.generateGraphics = function () {
         this.graphics.beginFill("#000").rect(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
-        for(var i = this.data.length - 1; i > 0; i--) {
+        for(var i = 0; i < this.data.length; i++) {
             var t = Tile.fromCode(this.data[i]);
             if(t.type == Lights.types.empty) {
                 continue;
@@ -290,6 +325,12 @@ var Color = (function () {
     };
     return Color;
 })();
+var Player = (function () {
+    function Player(id) {
+        this.id = id;
+    }
+    return Player;
+})();
 var Camera = (function () {
     function Camera(game, width, height) {
         this.game = game;
@@ -298,20 +339,9 @@ var Camera = (function () {
         this.x = 0;
         this.y = 0;
     }
-    Camera.prototype.focus = function (chunk, x, y) {
-        var chunkX = chunk.chunkX;
-        var chunkY = chunk.chunkY;
-        var chunkPixels = Lights.chunkSize * Lights.tileSize;
-        chunk.x = -x;
-        chunk.y = -y;
-        for(var i = 0; i < 8; i++) {
-            var p = Lights.directions[i];
-            var adjChunk = this.game.chunks[chunk.adjacent[i]];
-            if(adjChunk) {
-                adjChunk.x = p.x * chunkPixels - x;
-                adjChunk.y = p.y * chunkPixels - y;
-            }
-        }
+    Camera.prototype.focus = function (player) {
+        this.game.displayChunks.x = -player.x + this.x;
+        this.game.displayChunks.y = -player.y + this.y;
     };
     return Camera;
 })();
