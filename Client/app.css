@@ -1,8 +1,21 @@
 ﻿body
 {
-    font-family: 'Segoe UI', sans-serif
+    background-color: #161616;
+    font-family: 'Oxygen', 'Segoe UI', sans-serif;
 }
 
-span {
-    font-style: italic
+h1
+{
+    text-align:center;
+    font-weight: 300;
+    font-size: 3em;
+    color: #eedbdb;
+}
+
+#game
+{
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    border: solid 1px #eedbdb;
 }

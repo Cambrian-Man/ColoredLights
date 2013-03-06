@@ -9,6 +9,7 @@ var Lights = (function () {
         var _this = this;
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
+        Lights.tileSize = canvas.width / 40;
         this.displayChunks = new createjs.Container();
         this.stage.addChild(this.displayChunks);
         this.socket = io.connect('http://localhost:3300');
@@ -50,7 +51,6 @@ var Lights = (function () {
         };
     }
     Lights.chunkSize = 64;
-    Lights.tileSize = 24;
     Lights.types = {
         empty: 0,
         wall: 1,
@@ -269,10 +269,13 @@ var Chunk = (function (_super) {
             if(t.type == Lights.types.empty) {
                 continue;
             }
+            t.draw(this.graphics, this.tilePoint(i));
+            /*
             this.graphics.beginFill(t.color.toString());
-            var p = this.tilePoint(i);
+            var p: Point = this.tilePoint(i);
             this.graphics.rect(p.x * Lights.tileSize, p.y * Lights.tileSize, Lights.tileSize, Lights.tileSize);
-        }
+            */
+                    }
         this.cache(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
     };
     Chunk.prototype.tilePoint = function (i) {
@@ -290,6 +293,26 @@ var Tile = (function () {
         this.type = type;
         this.color = color;
     }
+    Tile.prototype.draw = function (graphics, point) {
+        point.x *= Lights.tileSize;
+        point.y *= Lights.tileSize;
+        graphics.beginFill(this.colorString());
+        graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
+        graphics.beginFill(this.modColor(new Color(20, 20, 10)));
+        graphics.moveTo(point.x, point.y).lineTo(point.x + Lights.tileSize, point.y).lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2)).closePath();
+        graphics.beginFill(this.modColor(new Color(-20, -20, 0)));
+        graphics.moveTo(point.x, point.y + Lights.tileSize).lineTo(point.x + Lights.tileSize, point.y + Lights.tileSize).lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2)).closePath();
+    };
+    Tile.prototype.colorString = function () {
+        return this.color.toString();
+    };
+    Tile.prototype.modColor = function (mod) {
+        var c = new Color(this.color.r, this.color.g, this.color.b);
+        c.r += mod.r;
+        c.g += mod.g;
+        c.b += mod.b;
+        return c.toString();
+    };
     Tile.fromCode = function fromCode(code) {
         var type = code % 10;
         var r = Math.floor(code / 10000000);
@@ -347,6 +370,8 @@ var Camera = (function () {
 })();
 window.onload = function () {
     var el = document.getElementById("game");
+    el.width = window.innerWidth * 0.75;
+    el.height = el.width * 0.5625;
     var game = new Lights(el);
 };
 //@ sourceMappingURL=LightsClient.js.map

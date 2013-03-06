@@ -17,7 +17,7 @@ class Lights {
     public thisPlayer: Player;
 
     static chunkSize: number = 64;
-    static tileSize: number = 24;
+    static tileSize: number;
     
     static types = {
         empty: 0,
@@ -53,6 +53,9 @@ class Lights {
     constructor(public canvas: HTMLCanvasElement) {
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
+
+        Lights.tileSize = canvas.width / 40;
+
         this.displayChunks = new createjs.Container();
         this.stage.addChild(this.displayChunks);
 
@@ -271,9 +274,12 @@ class Chunk extends createjs.Shape {
                 continue;
             }
 
+            t.draw(this.graphics, this.tilePoint(i));
+            /*
             this.graphics.beginFill(t.color.toString());
             var p: Point = this.tilePoint(i);
             this.graphics.rect(p.x * Lights.tileSize, p.y * Lights.tileSize, Lights.tileSize, Lights.tileSize);
+            */
         }
 
         this.cache(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
@@ -294,6 +300,39 @@ interface Point {
 class Tile {
     constructor(public type: number, public color: Color) {
 
+    }
+
+    draw(graphics: createjs.Graphics, point: Point) {
+        point.x *= Lights.tileSize;
+        point.y *= Lights.tileSize;
+        graphics.beginFill(this.colorString());
+        graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
+
+        graphics.beginFill(this.modColor(new Color(20, 20, 10)));
+        graphics.moveTo(point.x, point.y)
+            .lineTo(point.x + Lights.tileSize, point.y)
+            .lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2))
+            .closePath();
+
+        graphics.beginFill(this.modColor(new Color(-20, -20, 0)));
+        graphics.moveTo(point.x, point.y + Lights.tileSize)
+            .lineTo(point.x + Lights.tileSize, point.y + Lights.tileSize)
+            .lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2))
+            .closePath();
+
+    }
+
+    colorString(): string {
+        return this.color.toString();
+    }
+
+    modColor(mod:Color): string {
+        var c: Color = new Color(this.color.r, this.color.g, this.color.b);
+        c.r += mod.r;
+        c.g += mod.g;
+        c.b += mod.b;
+
+        return c.toString();
     }
 
     static fromCode(code: number):Tile {
@@ -352,5 +391,7 @@ class Camera {
 
 window.onload = () => {
     var el = <HTMLCanvasElement> document.getElementById("game");
+    el.width = window.innerWidth * 0.75;
+    el.height = el.width * 0.5625;
     var game = new Lights(el);
 };
