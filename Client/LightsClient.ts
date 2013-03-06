@@ -18,6 +18,7 @@ class Lights {
 
     static chunkSize: number = 64;
     static tileSize: number;
+    static pixelSize: number;
     
     static types = {
         empty: 0,
@@ -50,11 +51,14 @@ class Lights {
         { x: -1, y: -1 }
     ];
 
+    static public directionNames: string[] = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+
     constructor(public canvas: HTMLCanvasElement) {
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
 
         Lights.tileSize = canvas.width / 40;
+        Lights.pixelSize = Lights.chunkSize * Lights.tileSize;
 
         this.displayChunks = new createjs.Container();
         this.stage.addChild(this.displayChunks);
@@ -99,7 +103,7 @@ class Lights {
         window.addEventListener("keydown", (event: KeyboardEvent) => this.keyDown(event));
         window.addEventListener("keyup", (event: KeyboardEvent) => this.keyUp(event));
 
-        this.thisPlayer = new Player(data.id);
+        this.thisPlayer = new Player(data.id, this);
         this.players[data.id] = this.thisPlayer;
         this.thisPlayer.x = 100;
         this.thisPlayer.y = 100;
@@ -178,9 +182,8 @@ class Lights {
         }
 
         if (this.thisPlayer.chunk) {
-            var pixelSize = Lights.chunkSize * Lights.tileSize;
-            if ((this.thisPlayer.x < 0 || this.thisPlayer.x > pixelSize) ||
-                (this.thisPlayer.y < 0 || this.thisPlayer.y > pixelSize)) {
+            if ((this.thisPlayer.x < 0 || this.thisPlayer.x > Lights.pixelSize) ||
+                (this.thisPlayer.y < 0 || this.thisPlayer.y > Lights.pixelSize)) {
                 this.changeChunk();
             }
 
@@ -189,12 +192,11 @@ class Lights {
     }
 
     changeChunk() {
-        var pixelSize = Lights.chunkSize * Lights.tileSize;
         var chunk: Chunk = this.getChunkByPixel(this.thisPlayer.x, this.thisPlayer.y);
-        this.thisPlayer.x %= pixelSize;
-        if (this.thisPlayer.x < 0) { this.thisPlayer.x += pixelSize; }
-        this.thisPlayer.y %= pixelSize;
-        if (this.thisPlayer.y < 0) { this.thisPlayer.y += pixelSize; }
+        this.thisPlayer.x %= Lights.pixelSize;
+        if (this.thisPlayer.x < 0) { this.thisPlayer.x += Lights.pixelSize; }
+        this.thisPlayer.y %= Lights.pixelSize;
+        if (this.thisPlayer.y < 0) { this.thisPlayer.y += Lights.pixelSize; }
 
         this.socket.emit("enterChunk", { x: chunk.chunkX, y: chunk.chunkY });
     }
@@ -240,6 +242,25 @@ class Lights {
         return this.chunkAt(this.thisPlayer.chunk.chunkX + p.x, this.thisPlayer.chunk.chunkY + p.y);
     }
 
+    isInChunk(p: Point):bool {
+        return (p.x >= 0 || p.y >= 0 || p.x < Lights.pixelSize || p.y < Lights.pixelSize);
+    }
+
+    rollOver(p: Point): Object {
+        var chunk: Chunk = this.getChunkByPixel(p.x, p.y);
+        var newPoint = {x: 0, y: 0};
+        newPoint.x = p.x % Lights.pixelSize;
+        if (newPoint.x < 0) { newPoint.x += Lights.pixelSize; }
+        newPoint.y = p.y % Lights.pixelSize;
+        if (newPoint.y < 0) { newPoint.y += Lights.pixelSize; }
+
+        return {
+            x: newPoint.x,
+            y: newPoint.y,
+            chunk: chunk
+        }
+    }
+
     chunkAt(x: number, y: number): Chunk {
         var chunk: Chunk;
         for (var prop in this.chunks) {
@@ -275,14 +296,23 @@ class Chunk extends createjs.Shape {
             }
 
             t.draw(this.graphics, this.tilePoint(i));
-            /*
-            this.graphics.beginFill(t.color.toString());
-            var p: Point = this.tilePoint(i);
-            this.graphics.rect(p.x * Lights.tileSize, p.y * Lights.tileSize, Lights.tileSize, Lights.tileSize);
-            */
         }
 
         this.cache(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
+    }
+
+    isBlocking(p: Point): bool {
+        p.x = Math.floor(p.x / Lights.tileSize);
+        p.y = Math.floor(p.y / Lights.tileSize);
+
+        var type: number = this.data[(p.y * Lights.chunkSize) + p.x] % 10;
+
+        if (type == 1) {
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
     tilePoint(i: number): Point {
@@ -370,7 +400,22 @@ class Player {
     public y: number;
     public chunk: Chunk;
 
-    constructor(public id) {
+    constructor(public id, public game:Lights) {
+    }
+
+    collides(p: Point): bool {
+        var chunk: Chunk;
+        if (this.game.isInChunk(p)) {
+            if (chunk.isBlocking(p)) { return true } else { return false; }
+        }
+        else {
+            var roll = this.game.rollOver(p);
+            chunk = roll[chunk];
+        }
+    }
+
+    moveTo(p: Point): bool {
+        return true;
     }
 }
 
