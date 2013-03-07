@@ -246,7 +246,7 @@ class Lights {
         return (p.x >= 0 || p.y >= 0 || p.x < Lights.pixelSize || p.y < Lights.pixelSize);
     }
 
-    rollOver(p: Point): Object {
+    rollOver(p: Point): { x: number; y: number; chunk: Chunk; } {
         var chunk: Chunk = this.getChunkByPixel(p.x, p.y);
         var newPoint = {x: 0, y: 0};
         newPoint.x = p.x % Lights.pixelSize;
@@ -398,9 +398,11 @@ class Color {
 class Player {
     public x: number;
     public y: number;
+    public speed: { x: number; y: number; };
     public chunk: Chunk;
 
-    constructor(public id, public game:Lights) {
+    constructor(public id, public game: Lights) {
+        this.speed = { x: 10, y: 10 };
     }
 
     collides(p: Point): bool {
@@ -409,13 +411,31 @@ class Player {
             if (chunk.isBlocking(p)) { return true } else { return false; }
         }
         else {
-            var roll = this.game.rollOver(p);
-            chunk = roll[chunk];
+            var roll: { x: number; y: number; chunk: Chunk; } = this.game.rollOver(p);
+            chunk = roll.chunk;
+            if (chunk.isBlocking(roll)) {
+                return true;
+            }
+            else {
+                return false;
+            }
         }
     }
 
-    moveTo(p: Point): bool {
-        return true;
+    moveTo(step: Point, onCollide:Function) {
+        var newPoint: { x: number; y: number; chunk: Chunk; } = {
+            x: this.x +step.x,
+            y: this.y + step.y,
+            chunk: this.chunk
+        };
+        
+        if (this.collides(newPoint))  {
+            newPoint = this.game.rollOver(newPoint);
+            this.chunk = newPoint.chunk;
+        }
+
+        this.x = newPoint.x;
+        this.y = newPoint.y;
     }
 }
 
