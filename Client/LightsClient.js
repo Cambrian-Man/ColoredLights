@@ -123,8 +123,12 @@ var Lights = (function () {
         });
         this.thisPlayer = new Player(data.id, this);
         this.players[data.id] = this.thisPlayer;
-        this.thisPlayer.x = 100;
-        this.thisPlayer.y = 100;
+        this.thisPlayer.x = 800;
+        this.thisPlayer.y = 800;
+        this.stage.addChild(this.thisPlayer.image);
+        this.thisPlayer.image.x = this.stage.canvas.width / 2 - (this.thisPlayer.size.width / 2);
+        this.thisPlayer.image.y = this.stage.canvas.height / 2 - (this.thisPlayer.size.width / 2);
+        ;
         createjs.Ticker.addListener(function (event) {
             return _this.update(event);
         });
@@ -181,16 +185,21 @@ var Lights = (function () {
     Lights.prototype.update = function (event) {
         this.stage.update();
         if(Lights.keys.up) {
-            this.thisPlayer.y -= 10;
+            this.thisPlayer.speed.y = -10;
         } else if(Lights.keys.down) {
-            this.thisPlayer.y += 10;
+            this.thisPlayer.speed.y = 10;
+        } else {
+            this.thisPlayer.speed.y = 0;
         }
         if(Lights.keys.left) {
-            this.thisPlayer.x -= 10;
+            this.thisPlayer.speed.x = -10;
         } else if(Lights.keys.right) {
-            this.thisPlayer.x += 10;
+            this.thisPlayer.speed.x = 10;
+        } else {
+            this.thisPlayer.speed.x = 0;
         }
         if(this.thisPlayer.chunk) {
+            this.thisPlayer.move(this.thisPlayer.speed);
             if((this.thisPlayer.x < 0 || this.thisPlayer.x > Lights.pixelSize) || (this.thisPlayer.y < 0 || this.thisPlayer.y > Lights.pixelSize)) {
                 this.changeChunk();
             }
@@ -291,6 +300,7 @@ var Chunk = (function (_super) {
         this.chunkX = chunkX;
         this.chunkY = chunkY;
         this.adjacent = adjacent;
+        this.layer = 1;
         this.data = data;
         this.generateGraphics();
     }
@@ -335,6 +345,9 @@ var Tile = (function () {
         point.y *= Lights.tileSize;
         graphics.beginFill(this.colorString());
         graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
+        if(Lights.simpleGraphics) {
+            return;
+        }
         graphics.beginFill(this.modColor(new Color(20, 20, 10)));
         graphics.moveTo(point.x, point.y).lineTo(point.x + Lights.tileSize, point.y).lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2)).closePath();
         graphics.beginFill(this.modColor(new Color(-20, -20, 0)));
@@ -393,9 +406,41 @@ var Player = (function () {
             x: 10,
             y: 10
         };
+        this.size = {
+            width: Lights.tileSize,
+            height: Lights.tileSize
+        };
+        var g = new createjs.Graphics();
+        g.beginFill("#EEE");
+        g.drawRoundRect(0, 0, this.size.width, this.size.height, 2);
+        this.image = new createjs.Shape(g);
     }
-    Player.prototype.collides = function (p) {
-        var chunk;
+    Player.prototype.collide = function (p) {
+        if(this.collidePoint({
+            x: p.x,
+            y: p.y
+        })) {
+            return true;
+        } else if(this.collidePoint({
+            x: this.size.width + p.x,
+            y: p.y
+        })) {
+            return true;
+        } else if(this.collidePoint({
+            x: p.x,
+            y: this.size.height + p.y
+        })) {
+            return true;
+        } else if(this.collidePoint({
+            x: this.size.width + p.x,
+            y: this.size.height + p.y
+        })) {
+            return true;
+        }
+        return false;
+    };
+    Player.prototype.collidePoint = function (p) {
+        var chunk = this.chunk;
         if(this.game.isInChunk(p)) {
             if(chunk.isBlocking(p)) {
                 return true;
@@ -412,13 +457,13 @@ var Player = (function () {
             }
         }
     };
-    Player.prototype.moveTo = function (step, onCollide) {
+    Player.prototype.move = function (step, onCollide) {
         var newPoint = {
             x: this.x + step.x,
             y: this.y + step.y,
             chunk: this.chunk
         };
-        if(this.collides(newPoint)) {
+        if(!this.collide(newPoint)) {
             newPoint = this.game.rollOver(newPoint);
             this.chunk = newPoint.chunk;
         }
@@ -436,8 +481,8 @@ var Camera = (function () {
         this.y = 0;
     }
     Camera.prototype.focus = function (player) {
-        this.game.displayChunks.x = -player.x + this.x;
-        this.game.displayChunks.y = -player.y + this.y;
+        this.game.displayChunks.x = -player.x - player.image.x + this.x;
+        this.game.displayChunks.y = -player.y - player.image.y + this.y;
     };
     return Camera;
 })();

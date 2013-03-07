@@ -19,6 +19,7 @@ class Lights {
     static chunkSize: number = 64;
     static tileSize: number;
     static pixelSize: number;
+    static simpleGraphics: bool = true;
     
     static types = {
         empty: 0,
@@ -105,8 +106,11 @@ class Lights {
 
         this.thisPlayer = new Player(data.id, this);
         this.players[data.id] = this.thisPlayer;
-        this.thisPlayer.x = 100;
-        this.thisPlayer.y = 100;
+        this.thisPlayer.x = 800;
+        this.thisPlayer.y = 800;
+        this.stage.addChild(this.thisPlayer.image);
+        this.thisPlayer.image.x = this.stage.canvas.width / 2 - (this.thisPlayer.size.width / 2);
+        this.thisPlayer.image.y = this.stage.canvas.height / 2 - (this.thisPlayer.size.width / 2);;
 
         createjs.Ticker.addListener((event) => this.update(event));
     }
@@ -168,20 +172,27 @@ class Lights {
         this.stage.update();
 
         if (Lights.keys.up) {
-            this.thisPlayer.y -= 10;
+            this.thisPlayer.speed.y = -10;
         }
         else if (Lights.keys.down) {
-            this.thisPlayer.y += 10;
+            this.thisPlayer.speed.y = 10;
+        }
+        else {
+            this.thisPlayer.speed.y = 0;
         }
 
         if (Lights.keys.left) {
-            this.thisPlayer.x -= 10;
+            this.thisPlayer.speed.x = -10;
         }
         else if (Lights.keys.right) {
-            this.thisPlayer.x += 10;
+            this.thisPlayer.speed.x = 10;
+        }
+        else {
+            this.thisPlayer.speed.x = 0;
         }
 
         if (this.thisPlayer.chunk) {
+            this.thisPlayer.move(this.thisPlayer.speed);
             if ((this.thisPlayer.x < 0 || this.thisPlayer.x > Lights.pixelSize) ||
                 (this.thisPlayer.y < 0 || this.thisPlayer.y > Lights.pixelSize)) {
                 this.changeChunk();
@@ -278,6 +289,7 @@ class Lights {
 
 class Chunk extends createjs.Shape {
     data: number[];
+    public layer: number = 1;
 
     constructor(public chunkX: number, public chunkY: number, data:number[], public adjacent:string[]) {
         super();
@@ -337,6 +349,10 @@ class Tile {
         point.y *= Lights.tileSize;
         graphics.beginFill(this.colorString());
         graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
+
+        if (Lights.simpleGraphics) {
+            return;
+        }
 
         graphics.beginFill(this.modColor(new Color(20, 20, 10)));
         graphics.moveTo(point.x, point.y)
@@ -399,14 +415,58 @@ class Player {
     public x: number;
     public y: number;
     public speed: { x: number; y: number; };
+    public size: { width: number; height: number; };
     public chunk: Chunk;
+    public image: createjs.Shape;
 
     constructor(public id, public game: Lights) {
-        this.speed = { x: 10, y: 10 };
+        this.speed = {
+            x: 10,
+            y: 10
+        };
+
+        this.size = {
+            width: Lights.tileSize,
+            height: Lights.tileSize
+        };
+
+        var g: createjs.Graphics = new createjs.Graphics();
+        g.beginFill("#EEE");
+        g.drawRoundRect(0, 0, this.size.width, this.size.height, 2);
+        this.image = new createjs.Shape(g);
     }
 
-    collides(p: Point): bool {
-        var chunk: Chunk;
+    collide(p: Point): bool {
+        if (this.collidePoint({
+            x: p.x,
+            y: p.y
+        })) {
+            return true;
+        }
+        else if (this.collidePoint({
+                x: this.size.width + p.x,
+                y: p.y
+        })) {
+            return true;
+        }
+        else if (this.collidePoint({
+                x: p.x,
+                y: this.size.height + p.y
+        })) {
+            return true;
+        }
+        else if (this.collidePoint({
+                x: this.size.width + p.x,
+                y: this.size.height + p.y
+        })) {
+            return true;
+        }
+
+        return false;
+    }
+
+    collidePoint(p: Point): bool {
+        var chunk: Chunk = this.chunk;
         if (this.game.isInChunk(p)) {
             if (chunk.isBlocking(p)) { return true } else { return false; }
         }
@@ -422,14 +482,14 @@ class Player {
         }
     }
 
-    moveTo(step: Point, onCollide:Function) {
+    move(step: Point, onCollide?:Function) {
         var newPoint: { x: number; y: number; chunk: Chunk; } = {
-            x: this.x +step.x,
+            x: this.x + step.x,
             y: this.y + step.y,
             chunk: this.chunk
         };
         
-        if (this.collides(newPoint))  {
+        if (!this.collide(newPoint))  {
             newPoint = this.game.rollOver(newPoint);
             this.chunk = newPoint.chunk;
         }
@@ -448,9 +508,9 @@ class Camera {
         this.y = 0;
     }
 
-    focus(player:Player) {
-        this.game.displayChunks.x = -player.x + this.x;
-        this.game.displayChunks.y = -player.y + this.y;
+    focus(player: Player) {
+        this.game.displayChunks.x = -player.x - player.image.x + this.x;
+        this.game.displayChunks.y = -player.y - player.image.y + this.y;
     }
 }
 

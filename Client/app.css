@@ -10,6 +10,7 @@ h1
     font-weight: 300;
     font-size: 3em;
     color: #eedbdb;
+    text-shadow: 2px 2px 1px #f5ff00, -2px 2px 1px #f500ff, 0 -2px 1px #0ff;
 }
 
 #game
@@ -18,4 +19,5 @@ h1
     margin-left: auto;
     margin-right: auto;
     border: solid 1px #eedbdb;
+    box-shadow: 2px 2px 1px #f5ff00, -2px 2px 1px #f500ff, 0 -2px 1px #0ff;
 }
