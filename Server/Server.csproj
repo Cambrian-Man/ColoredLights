@@ -66,6 +66,10 @@
     <Content Include="DB.js">
       <DependentUpon>DB.ts</DependentUpon>
     </Content>
+    <TypeScriptCompile Include="Generator.ts" />
+    <Content Include="Generator.js">
+      <DependentUpon>Generator.ts</DependentUpon>
+    </Content>
     <Content Include="Lights.js">
       <DependentUpon>Lights.ts</DependentUpon>
     </Content>

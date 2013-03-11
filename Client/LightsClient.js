@@ -9,7 +9,7 @@ var Lights = (function () {
         var _this = this;
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
-        Lights.tileSize = canvas.width / 40;
+        Lights.tileSize = Math.floor(canvas.width / 40);
         Lights.pixelSize = Lights.chunkSize * Lights.tileSize;
         this.displayChunks = new createjs.Container();
         this.stage.addChild(this.displayChunks);
@@ -52,6 +52,8 @@ var Lights = (function () {
         };
     }
     Lights.chunkSize = 64;
+    Lights.tileCache = {
+    };
     Lights.types = {
         empty: 0,
         wall: 1,
@@ -123,12 +125,11 @@ var Lights = (function () {
         });
         this.thisPlayer = new Player(data.id, this);
         this.players[data.id] = this.thisPlayer;
-        this.thisPlayer.x = 800;
-        this.thisPlayer.y = 800;
+        this.thisPlayer.x = 0;
+        this.thisPlayer.y = 0;
         this.stage.addChild(this.thisPlayer.image);
         this.thisPlayer.image.x = this.stage.canvas.width / 2 - (this.thisPlayer.size.width / 2);
         this.thisPlayer.image.y = this.stage.canvas.height / 2 - (this.thisPlayer.size.width / 2);
-        ;
         createjs.Ticker.addListener(function (event) {
             return _this.update(event);
         });
@@ -316,9 +317,11 @@ var Chunk = (function (_super) {
         this.cache(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
     };
     Chunk.prototype.isBlocking = function (p) {
-        p.x = Math.floor(p.x / Lights.tileSize);
-        p.y = Math.floor(p.y / Lights.tileSize);
-        var type = this.data[(p.y * Lights.chunkSize) + p.x] % 10;
+        var tilePoint = {
+            x: Math.floor(p.x / Lights.tileSize),
+            y: Math.floor(p.y / Lights.tileSize)
+        };
+        var type = this.data[(tilePoint.y * Lights.chunkSize) + tilePoint.x] % 10;
         if(type == 1) {
             return true;
         } else {
@@ -336,22 +339,38 @@ var Chunk = (function (_super) {
     return Chunk;
 })(createjs.Shape);
 var Tile = (function () {
-    function Tile(type, color) {
+    function Tile(type, color, code) {
         this.type = type;
         this.color = color;
+        this.code = code;
     }
     Tile.prototype.draw = function (graphics, point) {
         point.x *= Lights.tileSize;
         point.y *= Lights.tileSize;
-        graphics.beginFill(this.colorString());
-        graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
-        if(Lights.simpleGraphics) {
-            return;
+        var canvas;
+        if(Lights.tileCache[this.code.toString()]) {
+            canvas = Lights.tileCache[this.code.toString()];
+        } else {
+            canvas = document.createElement("canvas");
+            canvas.width = Lights.tileSize;
+            canvas.height = Lights.tileSize;
+            var newGraphic = new createjs.Graphics();
+            newGraphic.beginFill(this.colorString());
+            newGraphic.rect(0, 0, Lights.tileSize, Lights.tileSize);
+            if(Lights.simpleGraphics) {
+                return;
+            }
+            newGraphic.beginFill(this.modColor(new Color(20, 20, 10)));
+            newGraphic.moveTo(0, 0).lineTo(0 + Lights.tileSize, 0).lineTo(0 + (Lights.tileSize / 2), 0 + (Lights.tileSize / 2)).closePath();
+            newGraphic.beginFill(this.modColor(new Color(-20, -20, 0)));
+            newGraphic.moveTo(0, 0 + Lights.tileSize).lineTo(0 + Lights.tileSize, 0 + Lights.tileSize).lineTo(0 + (Lights.tileSize / 2), 0 + (Lights.tileSize / 2)).closePath();
+            var shape = new createjs.Shape(newGraphic);
+            shape.draw(canvas.getContext("2d"));
+            Lights.tileCache[this.code.toString()] = canvas;
+            console.log(Lights.tileCache);
         }
-        graphics.beginFill(this.modColor(new Color(20, 20, 10)));
-        graphics.moveTo(point.x, point.y).lineTo(point.x + Lights.tileSize, point.y).lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2)).closePath();
-        graphics.beginFill(this.modColor(new Color(-20, -20, 0)));
-        graphics.moveTo(point.x, point.y + Lights.tileSize).lineTo(point.x + Lights.tileSize, point.y + Lights.tileSize).lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2)).closePath();
+        graphics.beginBitmapFill(canvas);
+        graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
     };
     Tile.prototype.colorString = function () {
         return this.color.toString();
@@ -368,7 +387,7 @@ var Tile = (function () {
         var r = Math.floor(code / 10000000);
         var g = Math.floor(code / 10000) % 1000;
         var b = Math.floor(code / 10) % 1000;
-        return new Tile(type, new Color(r, g, b));
+        return new Tile(type, new Color(r, g, b), code);
     };
     Tile.prototype.toCode = function () {
         var code = this.color.r * 10000000;
@@ -457,18 +476,34 @@ var Player = (function () {
             }
         }
     };
-    Player.prototype.move = function (step, onCollide) {
+    Player.prototype.move = function (step) {
         var newPoint = {
             x: this.x + step.x,
             y: this.y + step.y,
             chunk: this.chunk
         };
-        if(!this.collide(newPoint)) {
+        if(!this.game.isInChunk(newPoint)) {
             newPoint = this.game.rollOver(newPoint);
             this.chunk = newPoint.chunk;
         }
-        this.x = newPoint.x;
-        this.y = newPoint.y;
+        if(!this.collide(newPoint)) {
+            this.x = newPoint.x;
+            this.y = newPoint.y;
+        } else {
+            var newStep = {
+                x: 0,
+                y: 0
+            };
+            if(Math.abs(step.x) > 0) {
+                newStep['x'] = (step.x > 0) ? step.x -= 1 : step.x += 1;
+            }
+            if(Math.abs(step.y) > 0) {
+                newStep['y'] = (step.y > 0) ? step.y -= 1 : step.y += 1;
+            }
+            if(Math.abs(newStep.x) > 0 || Math.abs(newStep.y) > 0) {
+                this.move(newStep);
+            }
+        }
     };
     return Player;
 })();
@@ -481,8 +516,8 @@ var Camera = (function () {
         this.y = 0;
     }
     Camera.prototype.focus = function (player) {
-        this.game.displayChunks.x = -player.x - player.image.x + this.x;
-        this.game.displayChunks.y = -player.y - player.image.y + this.y;
+        this.game.displayChunks.x = -player.x + (this.game.stage.canvas.width / 2) - (player.size.height / 2);
+        this.game.displayChunks.y = -player.y + (this.game.stage.canvas.height / 2) - (player.size.height / 2);
     };
     return Camera;
 })();

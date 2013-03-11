@@ -19,8 +19,10 @@ class Lights {
     static chunkSize: number = 64;
     static tileSize: number;
     static pixelSize: number;
-    static simpleGraphics: bool = true;
+    static simpleGraphics: bool;
     
+    static tileCache: Object = {};
+
     static types = {
         empty: 0,
         wall: 1,
@@ -58,7 +60,7 @@ class Lights {
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
 
-        Lights.tileSize = canvas.width / 40;
+        Lights.tileSize = Math.floor(canvas.width / 40);
         Lights.pixelSize = Lights.chunkSize * Lights.tileSize;
 
         this.displayChunks = new createjs.Container();
@@ -106,11 +108,11 @@ class Lights {
 
         this.thisPlayer = new Player(data.id, this);
         this.players[data.id] = this.thisPlayer;
-        this.thisPlayer.x = 800;
-        this.thisPlayer.y = 800;
+        this.thisPlayer.x = 0;
+        this.thisPlayer.y = 0;
         this.stage.addChild(this.thisPlayer.image);
         this.thisPlayer.image.x = this.stage.canvas.width / 2 - (this.thisPlayer.size.width / 2);
-        this.thisPlayer.image.y = this.stage.canvas.height / 2 - (this.thisPlayer.size.width / 2);;
+        this.thisPlayer.image.y = this.stage.canvas.height / 2 - (this.thisPlayer.size.width / 2);
 
         createjs.Ticker.addListener((event) => this.update(event));
     }
@@ -314,10 +316,12 @@ class Chunk extends createjs.Shape {
     }
 
     isBlocking(p: Point): bool {
-        p.x = Math.floor(p.x / Lights.tileSize);
-        p.y = Math.floor(p.y / Lights.tileSize);
-
-        var type: number = this.data[(p.y * Lights.chunkSize) + p.x] % 10;
+        var tilePoint = {
+            x: Math.floor(p.x / Lights.tileSize),
+            y: Math.floor(p.y / Lights.tileSize)
+        }
+        
+        var type: number = this.data[(tilePoint.y * Lights.chunkSize) + tilePoint.x] % 10;
 
         if (type == 1) {
             return true;
@@ -340,32 +344,53 @@ interface Point {
 }
 
 class Tile {
-    constructor(public type: number, public color: Color) {
+    constructor(public type: number, public color: Color, public code:number) {
 
     }
 
     draw(graphics: createjs.Graphics, point: Point) {
         point.x *= Lights.tileSize;
         point.y *= Lights.tileSize;
-        graphics.beginFill(this.colorString());
-        graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
 
-        if (Lights.simpleGraphics) {
-            return;
+        var canvas: HTMLCanvasElement;
+
+        if (Lights.tileCache[this.code.toString()]) {
+            canvas = <HTMLCanvasElement> Lights.tileCache[this.code.toString()];
+        }
+        else {
+            canvas = <HTMLCanvasElement> document.createElement("canvas");
+            canvas.width = Lights.tileSize;
+            canvas.height = Lights.tileSize;
+            var newGraphic: createjs.Graphics = new createjs.Graphics();
+            newGraphic.beginFill(this.colorString());
+            newGraphic.rect(0, 0, Lights.tileSize, Lights.tileSize);
+
+            if (Lights.simpleGraphics) {
+                return;
+            }
+
+            newGraphic.beginFill(this.modColor(new Color(20, 20, 10)));
+            newGraphic.moveTo(0, 0)
+                .lineTo(0 + Lights.tileSize, 0)
+                .lineTo(0 + (Lights.tileSize / 2), 0 + (Lights.tileSize / 2))
+                .closePath();
+
+            newGraphic.beginFill(this.modColor(new Color(-20, -20, 0)));
+            newGraphic.moveTo(0, 0 + Lights.tileSize)
+                .lineTo(0 + Lights.tileSize, 0 + Lights.tileSize)
+                .lineTo(0 + (Lights.tileSize / 2), 0 + (Lights.tileSize / 2))
+                .closePath();
+
+            var shape: createjs.Shape = new createjs.Shape(newGraphic);
+            shape.draw(canvas.getContext("2d"));
+            Lights.tileCache[this.code.toString()] = canvas;
+            console.log(Lights.tileCache);
         }
 
-        graphics.beginFill(this.modColor(new Color(20, 20, 10)));
-        graphics.moveTo(point.x, point.y)
-            .lineTo(point.x + Lights.tileSize, point.y)
-            .lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2))
-            .closePath();
 
-        graphics.beginFill(this.modColor(new Color(-20, -20, 0)));
-        graphics.moveTo(point.x, point.y + Lights.tileSize)
-            .lineTo(point.x + Lights.tileSize, point.y + Lights.tileSize)
-            .lineTo(point.x + (Lights.tileSize / 2), point.y + (Lights.tileSize / 2))
-            .closePath();
 
+        graphics.beginBitmapFill(canvas);
+        graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
     }
 
     colorString(): string {
@@ -386,7 +411,7 @@ class Tile {
         var r: number = Math.floor(code / 10000000);
         var g: number = Math.floor(code / 10000) % 1000;
         var b: number = Math.floor(code / 10) % 1000;
-        return new Tile(type, new Color(r, g, b));
+        return new Tile(type, new Color(r, g, b), code);
     }
 
     toCode(): number {
@@ -436,7 +461,7 @@ class Player {
         this.image = new createjs.Shape(g);
     }
 
-    collide(p: Point): bool {
+    collide(p: Point):bool{
         if (this.collidePoint({
             x: p.x,
             y: p.y
@@ -482,20 +507,35 @@ class Player {
         }
     }
 
-    move(step: Point, onCollide?:Function) {
+    move(step: Point) {
         var newPoint: { x: number; y: number; chunk: Chunk; } = {
             x: this.x + step.x,
             y: this.y + step.y,
             chunk: this.chunk
         };
         
-        if (!this.collide(newPoint))  {
+        if (!this.game.isInChunk(newPoint)) {
             newPoint = this.game.rollOver(newPoint);
             this.chunk = newPoint.chunk;
         }
 
-        this.x = newPoint.x;
-        this.y = newPoint.y;
+        if (!this.collide(newPoint)) {
+            this.x = newPoint.x;
+            this.y = newPoint.y;
+        }
+        else {
+            var newStep = {x : 0, y: 0};
+            if (Math.abs(step.x) > 0) {
+                newStep['x'] = (step.x > 0) ? step.x -= 1 : step.x += 1;
+            }
+            if (Math.abs(step.y) > 0) {
+                newStep['y'] = (step.y > 0) ? step.y -= 1 : step.y += 1;
+            }
+
+            if (Math.abs(newStep.x) > 0 || Math.abs(newStep.y) > 0) {
+                this.move(newStep);
+            }
+        }
     }
 }
 
@@ -509,8 +549,8 @@ class Camera {
     }
 
     focus(player: Player) {
-        this.game.displayChunks.x = -player.x - player.image.x + this.x;
-        this.game.displayChunks.y = -player.y - player.image.y + this.y;
+        this.game.displayChunks.x = -player.x + (this.game.stage.canvas.width / 2) - (player.size.height / 2)
+        this.game.displayChunks.y = -player.y + (this.game.stage.canvas.height / 2) - (player.size.height / 2);
     }
 }
 

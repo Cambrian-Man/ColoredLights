@@ -5,6 +5,7 @@ var uuid = require('node-uuid');
 var mongoose = require('mongoose');
 
 var server = require("./Server")
+var generator = require("./Generator")
 var zlib = require("zlib")
 var Map = (function () {
     function Map() {
@@ -68,8 +69,8 @@ var Map = (function () {
             }).then(function (chunkResult) {
                 if(!chunkResult) {
                     chunk = new Chunk(x, y);
-                    var generator = new ChunkGen(chunk);
-                    generator.generate();
+                    var gen = new generator.ChunkGen(chunk, _this.chunks);
+                    gen.generate();
                     chunk.save();
                     chunk.adjacent = _this.getAdjacent(chunk);
                     deferred.resolve(chunk);
@@ -235,111 +236,7 @@ var ChunkMap = (function () {
     };
     return ChunkMap;
 })();
-var ChunkGen = (function () {
-    function ChunkGen(chunk) {
-        this.chunk = chunk;
-    }
-    ChunkGen.prototype.generate = function () {
-        var c;
-        var t;
-        for(var i = 0; i < Math.pow(Map.chunkSize, 2); i++) {
-            var g = (Math.random() * 50) + 30;
-            c = new Color(g, g, g);
-            t = new Tile(1, c);
-            this.chunk.tiles[i] = t;
-        }
-        // Generate chambers
-        var chambers = new Array();
-        for(var i = (Math.random() * 5) + 3; i > 0; i--) {
-            var chamber = new Chamber();
-            do {
-                chamber.x = Math.floor(Math.random() * Map.chunkSize);
-                chamber.y = Math.floor(Math.random() * Map.chunkSize);
-                chamber.size = Math.floor(Utils.random(3, 7));
-            }while(chamber.overlapsAny(chambers));
-            chambers.push(chamber);
-            this.circle(chamber.x, chamber.y, chamber.size, 0);
-        }
-        this.chunk.chambers = chambers;
-        // Link chambers
-        for(var i = chambers.length - 1; i > 0; i--) {
-            var chamber = chambers[i];
-            for(var j = chambers.length - 1; j > 0; j--) {
-                var otherChamber = chambers[j];
-                if(Math.random() > 0.5 && chamber != otherChamber) {
-                    if(!chamber.linked(otherChamber)) {
-                        chamber.linkTo(otherChamber);
-                    }
-                }
-            }
-        }
-        // Tunnel areas
-        var connections = [];
-        for(var i = 0, tot = chambers.length; i < tot; i++) {
-            connections = connections.concat(chambers[i].connections);
-        }
-        var tunnels = [];
-        var connectionIn = function (array, connection) {
-            for(var i = 0, tot = array.length; i < tot; i++) {
-                if(connection.equals(array[i])) {
-                    return true;
-                }
-            }
-            return false;
-        };
-        for(var i = 0, tot = connections.length; i < tot; i++) {
-            if(!connectionIn(tunnels, connections[i])) {
-                this.tunnel(connections[i].start, connections[i].end, 2, 5);
-                tunnels.push(connections[i]);
-            }
-        }
-    };
-    ChunkGen.prototype.circle = function (x, y, radius, type, color) {
-        var top = y - radius;
-        var bottom = y + radius;
-        var left = x - radius;
-        var right = x + radius;
-        var center = {
-            x: x,
-            y: y
-        };
-        var distance;
-        for(var col = left; col <= right; col++) {
-            if(col < 0 || row >= Map.chunkSize) {
-                continue;
-            }
-            for(var row = top; row <= bottom; row++) {
-                var t = this.chunk.tileAt(col, row);
-                if(row < 0 || row >= Map.chunkSize) {
-                    continue;
-                } else if(type != undefined && t.type == type) {
-                    continue;
-                }
-                distance = Utils.distance(center, {
-                    x: col,
-                    y: row
-                });
-                if(distance < radius) {
-                    if(type != undefined) {
-                        t.type = type;
-                    } else if(color) {
-                        t.color = color;
-                    }
-                }
-            }
-        }
-    };
-    ChunkGen.prototype.tunnel = function (p1, p2, minRadius, maxRadius) {
-        var step = minRadius / Utils.distance(p1, p2);
-        for(var f = 0; f < 1; f += step) {
-            var radius = Math.floor(Utils.random(minRadius, maxRadius));
-            var x = Math.round(Utils.lerp(p1.x, p2.x, f) + Utils.random(0, radius / 2));
-            var y = Math.round(Utils.lerp(p1.y, p2.y, f) + Utils.random(0, radius / 2));
-            this.circle(x, y, radius, 0);
-        }
-    };
-    return ChunkGen;
-})();
+exports.ChunkMap = ChunkMap;
 var Utils = (function () {
     function Utils() { }
     Utils.distance = function distance(p1, p2) {
@@ -353,6 +250,7 @@ var Utils = (function () {
     };
     return Utils;
 })();
+exports.Utils = Utils;
 var Tile = (function () {
     function Tile(type, color) {
         this.type = type;

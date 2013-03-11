@@ -44,6 +44,7 @@ export class DB {
     }
 
     saveChunk(chunk: map.Chunk) {
+        return;
         chunk.compressTiles().then((tileBuffer: NodeBuffer) => {
             var chunkSave = new this.models['Chunk']({
                 _id: chunk.id,
@@ -67,7 +68,7 @@ export class DB {
     getChunk(props: { id?: string; x?: number; y?: number; }): Qpromise {
         var deferred: Qdeferred = Q.defer();
         var query: Object;
-
+        /*
         if (props.id) {
             query = { _id: props.id };
         }
@@ -89,8 +90,8 @@ export class DB {
                 });
             }
         });
-
-
+        */
+        deferred.resolve(null);
 
         return deferred.promise;
     }
