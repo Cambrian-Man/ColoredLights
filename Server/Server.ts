@@ -50,7 +50,7 @@ export class Server {
     }
 
     offerChunk(socket: Socket, chunk: map.Chunk) {
-        socket.emit('offerChunk', { id: chunk.id, x: chunk.chunkX, y: chunk.chunkY, adjacent: chunk.adjacent });
+        socket.emit('offerChunk', { id: chunk.id, x: chunk.chunkX, y: chunk.chunkY, adjacent: chunk.adjacent, updated: chunk.updated });
     }
 
     requestChunk(socket: Socket, data) {
@@ -64,7 +64,7 @@ export class Server {
 
     sendChunk(socket: Socket, chunk: map.Chunk) {
         var codes: number[] = chunk.toArray();
-        socket.emit('chunk', { chunk: codes, x: chunk.chunkX, y: chunk.chunkY, id: chunk.id, adjacent: chunk.adjacent });
+        socket.emit('chunk', { chunk: codes, x: chunk.chunkX, y: chunk.chunkY, id: chunk.id, adjacent: chunk.adjacent, updated: chunk.updated });
     }
 }
 

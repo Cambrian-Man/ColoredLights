@@ -12,6 +12,7 @@ export class DB {
         Chunk: {
             x: Number,
             y: Number,
+            updated: Number,
             tiles: Buffer
         }
     };
@@ -50,6 +51,7 @@ export class DB {
                 _id: chunk.id,
                 x: chunk.chunkX,
                 y: chunk.chunkY,
+                updated: chunk.updated,
                 tiles: tileBuffer
             });
 

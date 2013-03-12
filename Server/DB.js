@@ -10,6 +10,7 @@ var DB = (function () {
             Chunk: {
                 x: Number,
                 y: Number,
+                updated: Number,
                 tiles: Buffer
             }
         };
@@ -46,6 +47,7 @@ var DB = (function () {
                 _id: chunk.id,
                 x: chunk.chunkX,
                 y: chunk.chunkY,
+                updated: chunk.updated,
                 tiles: tileBuffer
             });
             chunkSave.save(function (err, chunkSave) {

@@ -152,7 +152,7 @@ class Lights {
     }
 
     checkChunk(data) {
-        if (!this.chunks[data.id]) {
+        if (!this.chunks[data.id] || this.chunks[data.id].updated < data.updated ) {
             this.socket.emit("requestChunk", { x: data.x, y: data.y });
         }
         else {
@@ -161,7 +161,7 @@ class Lights {
     }
 
     addChunk(data) {
-        var newChunk: Chunk = new Chunk(data.x, data.y, data.chunk, data.adjacent);
+        var newChunk: Chunk = new Chunk(data.x, data.y, data.chunk, data.adjacent, data.updated);
 
         if (!this.thisPlayer.chunk) {
             this.thisPlayer.chunk = newChunk;
@@ -293,7 +293,7 @@ class Chunk extends createjs.Shape {
     data: number[];
     public layer: number = 1;
 
-    constructor(public chunkX: number, public chunkY: number, data:number[], public adjacent:string[]) {
+    constructor(public chunkX: number, public chunkY: number, data:number[], public adjacent:string[], public updated:number) {
         super();
 
         this.data = data;

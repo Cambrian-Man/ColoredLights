@@ -23,13 +23,13 @@ export class Map {
         northwest: { x: -1, y: -1 }
     }
 
-    static public directionNames:string[] = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+    static public directionNames: string[] = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
 
     constructor() {
         this.chunks = new ChunkMap();
     }
 
-    load(x: number, y: number):Qpromise {
+    load(x: number, y: number): Qpromise {
         var deferred: Qdeferred = Q.defer();
 
         var chunk: Chunk = this.chunks.getAt(x, y);
@@ -44,14 +44,13 @@ export class Map {
                     var gen: generator.ChunkGen = new generator.ChunkGen(chunk, this.chunks);
                     gen.generate();
                     chunk.save();
-                    chunk.adjacent = this.getAdjacent(chunk);
                     deferred.resolve(chunk);
                 }
                 else {
                     chunk = new Chunk(chunkResult['x'], chunkResult['y'], <string> chunkResult['_id']);
                     chunk.loadTiles(chunkResult['tiles']).then((tiles: Tile[]) => {
                         chunk.tiles = tiles;
-                        chunk.adjacent = this.getAdjacent(chunk);
+                        chunk.adjacent = this.chunks.getAdjacent(chunk);
                         deferred.resolve(chunk);
                     });
                 }
@@ -61,39 +60,22 @@ export class Map {
             (err) => {
                 console.log(err);
             });
-            
+
         }
 
         return deferred.promise;
     }
 
-    getAdjacent(chunk: Chunk): string[] {
-        var adjacent: string[] = [];
-        for (var i = 0; i < 8; i++) {
-            var p: Point = <Point> Map.directions[Map.directionNames[i]];
-            var adjChunk: Chunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
-
-            if (adjChunk === null) {
-                adjacent.push(null);
-            }
-            else {
-                adjacent.push(adjChunk.id);
-            }
-        }
-
-        return adjacent;
-    }
-
-    getChunk(id: string):Chunk {
+    getChunk(id: string): Chunk {
         return this.chunks.get(id);
     }
 
-    activate(chunk: Chunk):Qpromise {
-        var collect: Function = function (i:number): Qpromise => {
-            var deferred :Qdeferred = Q.defer();
+    activate(chunk: Chunk): Qpromise {
+        var collect: Function = function (i: number): Qpromise => {
+            var deferred: Qdeferred = Q.defer();
             var p: Point = Map.directions[Map.directionNames[i]];
 
-            this.load(chunk.chunkX + p.x, chunk.chunkY + p.y).then((adjChunk:Chunk) => {
+            this.load(chunk.chunkX + p.x, chunk.chunkY + p.y).then((adjChunk: Chunk) => {
                 chunk.adjacent[i] = adjChunk.id;
                 deferred.resolve(adjChunk);
             });
@@ -114,8 +96,11 @@ export class Chunk {
     public active: bool;
     public adjacent: string[];
 
-    constructor(public chunkX: number, public chunkY: number, public id?:string) {
+    public updated: number;
+
+    constructor(public chunkX: number, public chunkY: number, public id?: string) {
         this.tiles = new Array();
+        this.chambers = new Array();
 
         if (!id) {
             this.id = new mongoose.Types.ObjectId();
@@ -131,7 +116,7 @@ export class Chunk {
     tileAt(x: number, y: number): Tile {
         return this.tiles[(y * Map.chunkSize) + x];
     }
-    
+
     toArray(): number[] {
         var codes: number[] = [];
         for (var i = 0; i < this.tiles.length; i++) {
@@ -158,7 +143,7 @@ export class Chunk {
                 deferred.resolve(buffer);
             }
         });
-        
+
         return deferred.promise;
     }
 
@@ -175,6 +160,17 @@ export class Chunk {
         });
 
         return deferred.promise;
+    }
+
+    // Given a point in this chunk, converts it to a relative point in the other.
+    getRelativePoint(p: Point, chunk: Chunk): Point {
+        var xDist = this.chunkX - chunk.chunkX;
+        var yDist = this.chunkY - chunk.chunkY;
+
+        return {
+            x: (xDist * Map.chunkSize) + p.x,
+            y: (yDist * Map.chunkSize) + p.y
+        };
     }
 }
 
@@ -232,6 +228,23 @@ export class ChunkMap {
 
         return keys;
     }
+
+    getAdjacent(chunk: Chunk): string[] {
+        var adjacent: string[] = [];
+        for (var i = 0; i < 8; i++) {
+            var p: Point = <Point> Map.directions[Map.directionNames[i]];
+            var adjChunk: Chunk = this.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
+
+            if (adjChunk === null) {
+                adjacent.push(null);
+            }
+            else {
+                adjacent.push(adjChunk.id);
+            }
+        }
+
+        return adjacent;
+    }
 }
 
 export interface Point {
@@ -286,7 +299,7 @@ export class Chamber {
     public connections: Connection[];
     public id: string;
 
-    constructor(public x?: number, public y?: number, public size?: number) {
+    constructor(public chunk:Chunk, public x?: number, public y?: number, public size?: number) {
         this.connections = new Array();
         this.id = uuid();
     }
@@ -303,6 +316,23 @@ export class Chamber {
     overlapsAny(chambers: Chamber[]): bool {
         for (var i = 0; i < chambers.length; i++) {
             if (this.overlaps(chambers[i])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    overlapsChunk(chunk: Chunk): bool {
+        var points: Point[] = [];
+        points.push(chunk.getRelativePoint({ x: 0, y: 0 }, this.chunk));
+        points.push(chunk.getRelativePoint({ x: Map.chunkSize - 1, y: 0 }, this.chunk));
+        points.push(chunk.getRelativePoint({ x: 0, y: Map.chunkSize - 1 }, this.chunk));
+        points.push(chunk.getRelativePoint({ x: Map.chunkSize - 1, y: Map.chunkSize - 1 }, this.chunk));
+
+        for (var i = 0; i < 4; i++) {
+            var p: Point = points[i];
+            if (Utils.distance({ x: this.x, y: this.y }, p) < this.size) {
                 return true;
             }
         }

@@ -21,9 +21,34 @@ export class ChunkGen {
             t = new map.Tile(1, c);
             this.chunk.tiles[i] = t;
         }
+        // Get adjacent chunks and their chambers.
+        var fillAdjacent = (chunk: map.Chunk) => {
+            var chambers: map.Chamber[] = chunk.chambers;
+            for (var i = 0; i < chambers.length; i++) {
+                if (chambers[i].overlapsChunk(this.chunk)) {
+                    var p: map.Point = chunk.getRelativePoint({ x: chambers[i].x, y: chambers[i].y }, this.chunk);
+                    this.circle(p.x, p.y, chambers[i].size, 0);
+                }
+            }
+        }
 
-        this.circle(30, 30, 10, 0);
+        var adjacent: string[] = this.chunks.getAdjacent(this.chunk);
+        console.log(adjacent);
+        for (var i = 0; i < adjacent.length; i++) {
+            if (adjacent[i]) {
+                fillAdjacent(this.chunks.get(adjacent[i]));
+            }
+        }
+        
+        // Create chambers in this chunk.
+        var fillChamber = (ch: map.Chamber) => {
+            
+            this.circle(ch.x, ch.y, ch.size, 0);
+        }
 
+        var chamber: map.Chamber = new map.Chamber(this.chunk, 0, 0, Math.floor(map.Utils.random(10, 15)));
+        this.chunk.chambers.push(chamber);
+        fillChamber(chamber);
     }
 
     /*
@@ -149,6 +174,7 @@ export class ChunkGen {
             }
         }
 
+        chunk.updated = Date.now();
         var t: map.Tile = chunk.tileAt(point.x, point.y);
         if (type != undefined) {
             t.type = type;

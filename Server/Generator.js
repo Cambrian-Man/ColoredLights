@@ -9,6 +9,7 @@ var ChunkGen = (function () {
     ChunkGen.minorCavernMin = 3;
     ChunkGen.minorCavernMax = 6;
     ChunkGen.prototype.generate = function () {
+        var _this = this;
         // Fill the map with blanks.
         var c;
         var t;
@@ -18,7 +19,33 @@ var ChunkGen = (function () {
             t = new map.Tile(1, c);
             this.chunk.tiles[i] = t;
         }
-        this.circle(30, 30, 10, 0);
+        // Get adjacent chunks and their chambers.
+        var fillAdjacent = function (chunk) {
+            var chambers = chunk.chambers;
+            for(var i = 0; i < chambers.length; i++) {
+                if(chambers[i].overlapsChunk(_this.chunk)) {
+                    var p = chunk.getRelativePoint({
+                        x: chambers[i].x,
+                        y: chambers[i].y
+                    }, _this.chunk);
+                    _this.circle(p.x, p.y, chambers[i].size, 0);
+                }
+            }
+        };
+        var adjacent = this.chunks.getAdjacent(this.chunk);
+        console.log(adjacent);
+        for(var i = 0; i < adjacent.length; i++) {
+            if(adjacent[i]) {
+                fillAdjacent(this.chunks.get(adjacent[i]));
+            }
+        }
+        // Create chambers in this chunk.
+        var fillChamber = function (ch) {
+            _this.circle(ch.x, ch.y, ch.size, 0);
+        };
+        var chamber = new map.Chamber(this.chunk, 0, 0, Math.floor(map.Utils.random(10, 15)));
+        this.chunk.chambers.push(chamber);
+        fillChamber(chamber);
     };
     ChunkGen.prototype.circle = /*
     generate() {
@@ -147,6 +174,7 @@ var ChunkGen = (function () {
                 return;
             }
         }
+        chunk.updated = Date.now();
         var t = chunk.tileAt(point.x, point.y);
         if(type != undefined) {
             t.type = type;

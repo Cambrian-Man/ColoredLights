@@ -55,7 +55,8 @@ var Server = (function () {
             id: chunk.id,
             x: chunk.chunkX,
             y: chunk.chunkY,
-            adjacent: chunk.adjacent
+            adjacent: chunk.adjacent,
+            updated: chunk.updated
         });
     };
     Server.prototype.requestChunk = function (socket, data) {
@@ -73,7 +74,8 @@ var Server = (function () {
             x: chunk.chunkX,
             y: chunk.chunkY,
             id: chunk.id,
-            adjacent: chunk.adjacent
+            adjacent: chunk.adjacent,
+            updated: chunk.updated
         });
     };
     return Server;

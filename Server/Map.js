@@ -72,13 +72,12 @@ var Map = (function () {
                     var gen = new generator.ChunkGen(chunk, _this.chunks);
                     gen.generate();
                     chunk.save();
-                    chunk.adjacent = _this.getAdjacent(chunk);
                     deferred.resolve(chunk);
                 } else {
                     chunk = new Chunk(chunkResult['x'], chunkResult['y'], chunkResult['_id']);
                     chunk.loadTiles(chunkResult['tiles']).then(function (tiles) {
                         chunk.tiles = tiles;
-                        chunk.adjacent = _this.getAdjacent(chunk);
+                        chunk.adjacent = _this.chunks.getAdjacent(chunk);
                         deferred.resolve(chunk);
                     });
                 }
@@ -88,19 +87,6 @@ var Map = (function () {
             });
         }
         return deferred.promise;
-    };
-    Map.prototype.getAdjacent = function (chunk) {
-        var adjacent = [];
-        for(var i = 0; i < 8; i++) {
-            var p = Map.directions[Map.directionNames[i]];
-            var adjChunk = this.chunks.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
-            if(adjChunk === null) {
-                adjacent.push(null);
-            } else {
-                adjacent.push(adjChunk.id);
-            }
-        }
-        return adjacent;
     };
     Map.prototype.getChunk = function (id) {
         return this.chunks.get(id);
@@ -136,6 +122,7 @@ var Chunk = (function () {
         this.chunkY = chunkY;
         this.id = id;
         this.tiles = new Array();
+        this.chambers = new Array();
         if(!id) {
             this.id = new mongoose.Types.ObjectId();
         }
@@ -182,6 +169,15 @@ var Chunk = (function () {
             deferred.resolve(tiles);
         });
         return deferred.promise;
+    };
+    Chunk.prototype.getRelativePoint = // Given a point in this chunk, converts it to a relative point in the other.
+    function (p, chunk) {
+        var xDist = this.chunkX - chunk.chunkX;
+        var yDist = this.chunkY - chunk.chunkY;
+        return {
+            x: (xDist * Map.chunkSize) + p.x,
+            y: (yDist * Map.chunkSize) + p.y
+        };
     };
     return Chunk;
 })();
@@ -233,6 +229,19 @@ var ChunkMap = (function () {
             }
         }
         return keys;
+    };
+    ChunkMap.prototype.getAdjacent = function (chunk) {
+        var adjacent = [];
+        for(var i = 0; i < 8; i++) {
+            var p = Map.directions[Map.directionNames[i]];
+            var adjChunk = this.getAt(chunk.chunkX + p.x, chunk.chunkY + p.y);
+            if(adjChunk === null) {
+                adjacent.push(null);
+            } else {
+                adjacent.push(adjChunk.id);
+            }
+        }
+        return adjacent;
     };
     return ChunkMap;
 })();
@@ -286,7 +295,8 @@ var Color = (function () {
 })();
 exports.Color = Color;
 var Chamber = (function () {
-    function Chamber(x, y, size) {
+    function Chamber(chunk, x, y, size) {
+        this.chunk = chunk;
         this.x = x;
         this.y = y;
         this.size = size;
@@ -303,6 +313,35 @@ var Chamber = (function () {
     Chamber.prototype.overlapsAny = function (chambers) {
         for(var i = 0; i < chambers.length; i++) {
             if(this.overlaps(chambers[i])) {
+                return true;
+            }
+        }
+        return false;
+    };
+    Chamber.prototype.overlapsChunk = function (chunk) {
+        var points = [];
+        points.push(chunk.getRelativePoint({
+            x: 0,
+            y: 0
+        }, this.chunk));
+        points.push(chunk.getRelativePoint({
+            x: Map.chunkSize - 1,
+            y: 0
+        }, this.chunk));
+        points.push(chunk.getRelativePoint({
+            x: 0,
+            y: Map.chunkSize - 1
+        }, this.chunk));
+        points.push(chunk.getRelativePoint({
+            x: Map.chunkSize - 1,
+            y: Map.chunkSize - 1
+        }, this.chunk));
+        for(var i = 0; i < 4; i++) {
+            var p = points[i];
+            if(Utils.distance({
+                x: this.x,
+                y: this.y
+            }, p) < this.size) {
                 return true;
             }
         }

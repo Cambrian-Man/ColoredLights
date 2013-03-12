@@ -167,7 +167,7 @@ var Lights = (function () {
         }
     };
     Lights.prototype.checkChunk = function (data) {
-        if(!this.chunks[data.id]) {
+        if(!this.chunks[data.id] || this.chunks[data.id].updated < data.updated) {
             this.socket.emit("requestChunk", {
                 x: data.x,
                 y: data.y
@@ -177,7 +177,7 @@ var Lights = (function () {
         }
     };
     Lights.prototype.addChunk = function (data) {
-        var newChunk = new Chunk(data.x, data.y, data.chunk, data.adjacent);
+        var newChunk = new Chunk(data.x, data.y, data.chunk, data.adjacent, data.updated);
         if(!this.thisPlayer.chunk) {
             this.thisPlayer.chunk = newChunk;
         }
@@ -296,11 +296,12 @@ var Lights = (function () {
 })();
 var Chunk = (function (_super) {
     __extends(Chunk, _super);
-    function Chunk(chunkX, chunkY, data, adjacent) {
+    function Chunk(chunkX, chunkY, data, adjacent, updated) {
         _super.call(this);
         this.chunkX = chunkX;
         this.chunkY = chunkY;
         this.adjacent = adjacent;
+        this.updated = updated;
         this.layer = 1;
         this.data = data;
         this.generateGraphics();
