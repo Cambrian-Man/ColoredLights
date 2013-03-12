@@ -1,11 +1,11 @@
 import map = module('./Map');
 
 export class ChunkGen {
-    public static majorCavernMin = 8;
-    public static majorCavernMax = 12;
+    public static majorCavernMin = 10;
+    public static majorCavernMax = 15;
 
-    public static minorCavernMin = 3;
-    public static minorCavernMax = 6;
+    public static minorCavernMin = 5;
+    public static minorCavernMax = 9;
 
     constructor(public chunk: map.Chunk, public chunks:map.ChunkMap) {
     }
@@ -33,7 +33,6 @@ export class ChunkGen {
         }
 
         var adjacent: string[] = this.chunks.getAdjacent(this.chunk);
-        console.log(adjacent);
         for (var i = 0; i < adjacent.length; i++) {
             if (adjacent[i]) {
                 fillAdjacent(this.chunks.get(adjacent[i]));
@@ -42,82 +41,91 @@ export class ChunkGen {
         
         // Create chambers in this chunk.
         var fillChamber = (ch: map.Chamber) => {
-            
             this.circle(ch.x, ch.y, ch.size, 0);
         }
 
-        var chamber: map.Chamber = new map.Chamber(this.chunk, 0, 0, Math.floor(map.Utils.random(10, 15)));
-        this.chunk.chambers.push(chamber);
-        fillChamber(chamber);
+        this.generateMainChamber();
+        for (i = 0; i < this.chunk.chambers.length; i++) {
+            fillChamber(this.chunk.chambers[i]);
+        }
+
+        this.generateBranches(2);
     }
 
-    /*
-    generate() {
-        var c: map.Color;
-        var t: map.Tile;
-
-        for (var i = 0; i < Math.pow(map.Map.chunkSize, 2)); i++) {
-            var g: number = (Math.random() * 50) + 30;
-            c = new map.Color(g, g, g);
-            t = new map.Tile(1, c);
-            this.chunk.tiles[i] = t;
-        }
-
-        // Generate chambers
-        var chambers: map.Chamber[] = new Array();
-        for (var i = (Math.random() * 5) + 3; i > 0; i--) {
-            var chamber: map.Chamber = new map.Chamber();
-            do {
-                chamber.x = Math.floor(Math.random() * map.Map.chunkSize);
-                chamber.y = Math.floor(Math.random() * map.Map.chunkSize);
-                chamber.size = Math.floor(map.Utils.random(3, 7));
+    private generateMainChamber() {
+        var x = Math.floor(map.Utils.random(ChunkGen.majorCavernMax, map.Map.chunkSize - ChunkGen.majorCavernMax));
+        var y = Math.floor(map.Utils.random(ChunkGen.majorCavernMax, map.Map.chunkSize - ChunkGen.majorCavernMax));
+        var size = Math.floor(map.Utils.random(ChunkGen.majorCavernMin, ChunkGen.majorCavernMax));
+        var chamber: map.Chamber = new map.Chamber(this.chunk, x, y, size);
+        do {
+            var adjChamber: map.Chamber = this.getRandomAdjacentChamber(ChunkGen.majorCavernMin, ChunkGen.majorCavernMax);
+            if (!adjChamber) {
+                break;
             }
-            while (chamber.overlapsAny(chambers));
-            chambers.push(chamber);
-            this.circle(chamber.x, chamber.y, chamber.size, 0);
+            else {
+                this.link(chamber, adjChamber, 6, 9);
+            }
         }
+        while (Math.random() > chamber.connections.length * 0.3);
+        this.chunk.chambers.push(chamber);
+    }
 
-        this.chunk.chambers = chambers;
+    private generateBranches(maxLevels: number) {
+        var mainChamber: map.Chamber = this.chunk.chambers[0];
+        var satellite: map.Chamber;
+        do {
+            var x = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
+            var y = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
+            satellite = new map.Chamber(this.chunk, x, y, Math.floor(map.Utils.random(ChunkGen.minorCavernMin, ChunkGen.minorCavernMax)));
+        }
+        while (mainChamber.overlaps(satellite));
+        this.link(mainChamber, satellite, 4, 6);
+    }
 
-        // Link chambers
-        for (var i = chambers.length - 1; i > 0; i--) {
-            var chamber: Chamber = chambers[i];
-            for (var j = chambers.length - 1; j > 0; j--) {
-                var otherChamber: map.Chamber = chambers[j];
-                if (Math.random() > 0.5 && chamber != otherChamber) {
-                    if (!chamber.linked(otherChamber)) {
-                        chamber.linkTo(otherChamber);
+    link(chamber1: map.Chamber, chamber2: map.Chamber, min:number, max:number) {
+        chamber1.linkTo(chamber2);
+        this.tunnel(chamber1.chunk, chamber1, chamber2.chunk, chamber2, min, max);
+    }
+
+    getRandomAdjacentChamber(minSize:number, maxSize:number): map.Chamber {
+        var adjacent: string[] = this.chunks.getAdjacent(this.chunk).filter((element: any, index:number, array: any) => {
+            return !(element == null);
+        });
+
+        while (adjacent.length > 0) {
+            var i = Math.floor(map.Utils.random(0, adjacent.length));
+            var id = adjacent[i];
+
+            adjacent.splice(i, 1);
+
+            var chunk: map.Chunk = this.chunks.get(adjacent[i]);
+            if (chunk) {
+                if (chunk.chambers.length > 0) {
+                    var chamber: map.Chamber = this.getRandomChamber(chunk, minSize, maxSize);
+                    if (chamber) {
+                        return chamber;
                     }
                 }
             }
         }
 
-        // Tunnel areas
-        var connections: map.Connection[] = [];
-        for (var i = 0, tot = chambers.length; i < tot; i++) {
-            connections = connections.concat(chambers[i].connections);
-        }
-
-        var tunnels: map.Connection[] = [];
-
-        var connectionIn = function (array: map.Connection[], connection: map.Connection): Boolean {
-            for (var i = 0, tot = array.length; i < tot; i++) {
-                if (connection.equals(array[i])) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        for (var i = 0, tot = connections.length; i < tot; i++) {
-            if (!connectionIn(tunnels, connections[i])) {
-                this.tunnel(connections[i].start, connections[i].end, 2, 5);
-                tunnels.push(connections[i]);
-            }
-        }
+        return null;
     }
-    */
+
+    getRandomChamber(chunk: map.Chunk, minSize:number, maxSize:number): map.Chamber {
+        var chambers: map.Chamber[] = chunk.chambers.slice(0);
+
+        while (chambers.length > 0) {
+            var i = Math.floor(map.Utils.random(0, chambers.length));
+            var chamber: map.Chamber = chambers.splice(i, 1)[0];
+
+            if (chamber.size >= minSize && chamber.size <= maxSize) {
+                return chamber;
+            }
+        }
+        
+        return null;
+    }
 
     circle(x: number, y: number, radius: number, type?: number, color?: map.Color) {
         var top: number = y - radius;
@@ -137,7 +145,9 @@ export class ChunkGen {
         }
     }
 
-    tunnel(p1: map.Point, p2: map.Point, minRadius: number, maxRadius: number) {
+    tunnel(chunk1: map.Chunk, p1: map.Point, chunk2: map.Chunk, p2: map.Point, minRadius: number, maxRadius: number) {
+        p2 = chunk1.getRelativePoint(p2, chunk2);
+
         var step: number = minRadius / map.Utils.distance(p1, p2);
         for (var f = 0; f < 1; f += step) {
             var radius = Math.floor(map.Utils.random(minRadius, maxRadius));
@@ -149,25 +159,18 @@ export class ChunkGen {
 
     setTile(point: map.Point, type?: number, color?: map.Color) {
         var offset = { x: 0, y: 0 };
-        if (point.x < 0) {
-            offset.x = -1;
-            point.x = map.Map.chunkSize + (point.x % map.Map.chunkSize);
-        }
-        else if (point.x >= map.Map.chunkSize) {
-            offset.x = 1;
-            point.x = point.x % map.Map.chunkSize;
-        }
 
-        if (point.y < 0) {
-            offset.y = -1;
-            point.y = map.Map.chunkSize + (point.y % map.Map.chunkSize);
-        }
-        else if (point.y >= map.Map.chunkSize) {
-            offset.y = 1;
-            point.y = point.y % map.Map.chunkSize;
-        }
+        offset.x = Math.floor(point.x / map.Map.chunkSize);
+        offset.y = Math.floor(point.y / map.Map.chunkSize);
+        
         var chunk: map.Chunk = this.chunk;
         if (offset.x != 0 || offset.y != 0) {
+            point.x = point.x % map.Map.chunkSize;
+            if (point.x < 0) { point.x += map.Map.chunkSize; }
+
+            point.y = point.y % map.Map.chunkSize;
+            if (point.y < 0) { point.y += map.Map.chunkSize; }
+
             chunk = this.chunks.getAt(this.chunk.chunkX + offset.x, this.chunk.chunkY + offset.y);
             if (!chunk) {
                 return;

@@ -9,7 +9,7 @@ var Lights = (function () {
         var _this = this;
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
-        Lights.tileSize = Math.floor(canvas.width / 40);
+        Lights.tileSize = 2;
         Lights.pixelSize = Lights.chunkSize * Lights.tileSize;
         this.displayChunks = new createjs.Container();
         this.stage.addChild(this.displayChunks);
