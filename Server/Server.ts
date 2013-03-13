@@ -39,6 +39,7 @@ export class Server {
     enterChunk(socket: Socket, x: number, y: number) {
         this.map.load(x, y).then((chunk: map.Chunk) => {
             this.map.activate(chunk).then((adjChunks: map.Chunk[]) => {
+    
                 this.offerChunk(socket, chunk);
                 for (var i = 0; i < adjChunks.length; i++) {
                     this.offerChunk(socket, adjChunks[i]);

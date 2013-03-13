@@ -162,9 +162,12 @@ class Lights {
 
     addChunk(data) {
         var newChunk: Chunk = new Chunk(data.x, data.y, data.chunk, data.adjacent, data.updated);
-
         if (!this.thisPlayer.chunk) {
             this.thisPlayer.chunk = newChunk;
+        }
+        
+        if (this.chunks[data.id]) {
+            this.displayChunks.removeChild(this.chunks[data.id]);
         }
 
         this.chunks[data.id] = newChunk;
@@ -229,6 +232,10 @@ class Lights {
             var adjChunk: Chunk = this.chunks[this.thisPlayer.chunk.adjacent[i]];
             this.displayChunks.addChild(adjChunk);
             if (adjChunk) {
+                var text: createjs.Text = new createjs.Text(adjChunk.chunkX + " " + adjChunk.chunkY, "Helvetica", "#FFF");
+                text.x = p.x * pixelSize;
+                text.y = p.y * pixelSize;
+                this.displayChunks.addChild(text);
                 adjChunk.x = p.x * pixelSize;
                 adjChunk.y = p.y * pixelSize;
             }
@@ -384,7 +391,6 @@ class Tile {
             var shape: createjs.Shape = new createjs.Shape(newGraphic);
             shape.draw(canvas.getContext("2d"));
             Lights.tileCache[this.code.toString()] = canvas;
-            console.log(Lights.tileCache);
         }
 
 

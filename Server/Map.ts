@@ -299,7 +299,7 @@ export class Chamber {
     public connections: Connection[];
     public id: string;
 
-    constructor(public chunk:Chunk, public x?: number, public y?: number, public size?: number) {
+    constructor(public chunkID:string, public x?: number, public y?: number, public size?: number) {
         this.connections = new Array();
         this.id = uuid();
     }
@@ -323,12 +323,12 @@ export class Chamber {
         return false;
     }
 
-    overlapsChunk(chunk: Chunk): bool {
+    overlapsChunk(otherChunk: Chunk, chamberChunk:Chunk): bool {
         var points: Point[] = [];
-        points.push(chunk.getRelativePoint({ x: 0, y: 0 }, this.chunk));
-        points.push(chunk.getRelativePoint({ x: Map.chunkSize - 1, y: 0 }, this.chunk));
-        points.push(chunk.getRelativePoint({ x: 0, y: Map.chunkSize - 1 }, this.chunk));
-        points.push(chunk.getRelativePoint({ x: Map.chunkSize - 1, y: Map.chunkSize - 1 }, this.chunk));
+        points.push(otherChunk.getRelativePoint({ x: 0, y: 0 }, chamberChunk));
+        points.push(otherChunk.getRelativePoint({ x: Map.chunkSize - 1, y: 0 }, chamberChunk));
+        points.push(otherChunk.getRelativePoint({ x: 0, y: Map.chunkSize - 1 }, chamberChunk));
+        points.push(otherChunk.getRelativePoint({ x: Map.chunkSize - 1, y: Map.chunkSize - 1 }, chamberChunk));
 
         for (var i = 0; i < 4; i++) {
             var p: Point = points[i];

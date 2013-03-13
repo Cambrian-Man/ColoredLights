@@ -295,8 +295,8 @@ var Color = (function () {
 })();
 exports.Color = Color;
 var Chamber = (function () {
-    function Chamber(chunk, x, y, size) {
-        this.chunk = chunk;
+    function Chamber(chunkID, x, y, size) {
+        this.chunkID = chunkID;
         this.x = x;
         this.y = y;
         this.size = size;
@@ -318,24 +318,24 @@ var Chamber = (function () {
         }
         return false;
     };
-    Chamber.prototype.overlapsChunk = function (chunk) {
+    Chamber.prototype.overlapsChunk = function (otherChunk, chamberChunk) {
         var points = [];
-        points.push(chunk.getRelativePoint({
+        points.push(otherChunk.getRelativePoint({
             x: 0,
             y: 0
-        }, this.chunk));
-        points.push(chunk.getRelativePoint({
+        }, chamberChunk));
+        points.push(otherChunk.getRelativePoint({
             x: Map.chunkSize - 1,
             y: 0
-        }, this.chunk));
-        points.push(chunk.getRelativePoint({
+        }, chamberChunk));
+        points.push(otherChunk.getRelativePoint({
             x: 0,
             y: Map.chunkSize - 1
-        }, this.chunk));
-        points.push(chunk.getRelativePoint({
+        }, chamberChunk));
+        points.push(otherChunk.getRelativePoint({
             x: Map.chunkSize - 1,
             y: Map.chunkSize - 1
-        }, this.chunk));
+        }, chamberChunk));
         for(var i = 0; i < 4; i++) {
             var p = points[i];
             if(Utils.distance({
