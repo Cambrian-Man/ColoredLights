@@ -27,7 +27,7 @@ export class ChunkGen {
         var fillAdjacent = (chunk: map.Chunk) => {
             var chambers: map.Chamber[] = chunk.chambers;
             for (var i = 0; i < chambers.length; i++) {
-                if (chambers[i].overlapsChunk(this.chunk, this.chunks.get(chambers[i].chunkID))) {
+                if (chambers[i].overlapsChunk(this.chunks.get(chambers[i].chunkID))) {
                     var p: map.Point = chunk.getRelativePoint({ x: chambers[i].x, y: chambers[i].y }, this.chunk);
                     this.circle(p.x, p.y, chambers[i].size, 0);
                 }
@@ -58,6 +58,8 @@ export class ChunkGen {
         var y = Math.floor(map.Utils.random(ChunkGen.majorCavernMax, map.Map.chunkSize - ChunkGen.majorCavernMax));
         var size = Math.floor(map.Utils.random(ChunkGen.majorCavernMin, ChunkGen.majorCavernMax));
         var chamber: map.Chamber = new map.Chamber(this.chunk.id, x, y, size);
+        chamber.chunk = this.chunk;
+
         do {
             var adjChamber: map.Chamber = this.getRandomAdjacentChamber(ChunkGen.majorCavernMin, ChunkGen.majorCavernMax);
             if (!adjChamber) {
@@ -78,6 +80,7 @@ export class ChunkGen {
             var x = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
             var y = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
             satellite = new map.Chamber(this.chunk.id, x, y, Math.floor(map.Utils.random(ChunkGen.minorCavernMin, ChunkGen.minorCavernMax)));
+            satellite.chunk = this.chunk;
         }
         while (mainChamber.overlaps(satellite));
         this.link(mainChamber, satellite, 4, 6);
@@ -85,8 +88,7 @@ export class ChunkGen {
 
     link(chamber1: map.Chamber, chamber2: map.Chamber, min:number, max:number) {
         chamber1.linkTo(chamber2);
-        console.log(chamber1);
-        this.tunnel(this.chunks.get(chamber1.chunkID), chamber1, this.chunks.get(chamber2.chunkID), chamber2, min, max);
+        this.tunnel(chamber1.chunk, chamber1, chamber2.chunk, chamber2, min, max);
     }
 
     getRandomAdjacentChamber(minSize:number, maxSize:number): map.Chamber {
@@ -115,7 +117,7 @@ export class ChunkGen {
         return null;
     }
 
-    getRandomChamber(chunk: map.Chunk, minSize:number, maxSize:number): map.Chamber {
+    getRandomChamber(chunk: map.Chunk, minSize: number, maxSize: number): map.Chamber {
         var chambers: map.Chamber[] = chunk.chambers.slice(0);
 
         while (chambers.length > 0) {

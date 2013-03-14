@@ -24,7 +24,7 @@ var ChunkGen = (function () {
         var fillAdjacent = function (chunk) {
             var chambers = chunk.chambers;
             for(var i = 0; i < chambers.length; i++) {
-                if(chambers[i].overlapsChunk(_this.chunk, _this.chunks.get(chambers[i].chunkID))) {
+                if(chambers[i].overlapsChunk(_this.chunks.get(chambers[i].chunkID))) {
                     var p = chunk.getRelativePoint({
                         x: chambers[i].x,
                         y: chambers[i].y
@@ -54,6 +54,7 @@ var ChunkGen = (function () {
         var y = Math.floor(map.Utils.random(ChunkGen.majorCavernMax, map.Map.chunkSize - ChunkGen.majorCavernMax));
         var size = Math.floor(map.Utils.random(ChunkGen.majorCavernMin, ChunkGen.majorCavernMax));
         var chamber = new map.Chamber(this.chunk.id, x, y, size);
+        chamber.chunk = this.chunk;
         do {
             var adjChamber = this.getRandomAdjacentChamber(ChunkGen.majorCavernMin, ChunkGen.majorCavernMax);
             if(!adjChamber) {
@@ -71,13 +72,13 @@ var ChunkGen = (function () {
             var x = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
             var y = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
             satellite = new map.Chamber(this.chunk.id, x, y, Math.floor(map.Utils.random(ChunkGen.minorCavernMin, ChunkGen.minorCavernMax)));
+            satellite.chunk = this.chunk;
         }while(mainChamber.overlaps(satellite));
         this.link(mainChamber, satellite, 4, 6);
     };
     ChunkGen.prototype.link = function (chamber1, chamber2, min, max) {
         chamber1.linkTo(chamber2);
-        console.log(chamber1);
-        this.tunnel(this.chunks.get(chamber1.chunkID), chamber1, this.chunks.get(chamber2.chunkID), chamber2, min, max);
+        this.tunnel(chamber1.chunk, chamber1, chamber2.chunk, chamber2, min, max);
     };
     ChunkGen.prototype.getRandomAdjacentChamber = function (minSize, maxSize) {
         var adjacent = this.chunks.getAdjacent(this.chunk).filter(function (element, index, array) {

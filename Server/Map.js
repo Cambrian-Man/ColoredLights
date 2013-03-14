@@ -318,24 +318,24 @@ var Chamber = (function () {
         }
         return false;
     };
-    Chamber.prototype.overlapsChunk = function (otherChunk, chamberChunk) {
+    Chamber.prototype.overlapsChunk = function (otherChunk) {
         var points = [];
         points.push(otherChunk.getRelativePoint({
             x: 0,
             y: 0
-        }, chamberChunk));
+        }, this.chunk));
         points.push(otherChunk.getRelativePoint({
             x: Map.chunkSize - 1,
             y: 0
-        }, chamberChunk));
+        }, this.chunk));
         points.push(otherChunk.getRelativePoint({
             x: 0,
             y: Map.chunkSize - 1
-        }, chamberChunk));
+        }, this.chunk));
         points.push(otherChunk.getRelativePoint({
             x: Map.chunkSize - 1,
             y: Map.chunkSize - 1
-        }, chamberChunk));
+        }, this.chunk));
         for(var i = 0; i < 4; i++) {
             var p = points[i];
             if(Utils.distance({
