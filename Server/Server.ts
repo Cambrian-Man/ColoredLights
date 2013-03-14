@@ -30,13 +30,15 @@ export class Server {
         this.players[player.id] = player;
         socket.emit('connection', { id: id });
 
-        this.enterChunk(socket, 0, 0);
+        this.enterChunk(socket, 0, 0, (chunk: map.Chunk) => {
+            socket.emit("addPlayer", { id: id, chunk: chunk.id, x: chunk.chambers[0].x, y: chunk.chambers[0].y });
+        });
 
         socket.on("enterChunk", (data) => this.enterChunk(socket, data.x, data.y));
         socket.on("requestChunk", (data) => this.requestChunk(socket, data));
     }
 
-    enterChunk(socket: Socket, x: number, y: number) {
+    enterChunk(socket: Socket, x: number, y: number, callback?:(chunk: map.Chunk) => any) {
         this.map.load(x, y).then((chunk: map.Chunk) => {
             this.map.activate(chunk).then((adjChunks: map.Chunk[]) => {
     
@@ -44,8 +46,12 @@ export class Server {
                 for (var i = 0; i < adjChunks.length; i++) {
                     this.offerChunk(socket, adjChunks[i]);
                 }
-
+                
                 socket.emit("entered", { chunk: chunk.id });
+
+                if (callback) {
+                    callback(chunk);
+                }
             });
         });
     }

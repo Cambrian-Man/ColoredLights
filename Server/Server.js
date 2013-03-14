@@ -28,7 +28,14 @@ var Server = (function () {
         socket.emit('connection', {
             id: id
         });
-        this.enterChunk(socket, 0, 0);
+        this.enterChunk(socket, 0, 0, function (chunk) {
+            socket.emit("addPlayer", {
+                id: id,
+                chunk: chunk.id,
+                x: chunk.chambers[0].x,
+                y: chunk.chambers[0].y
+            });
+        });
         socket.on("enterChunk", function (data) {
             return _this.enterChunk(socket, data.x, data.y);
         });
@@ -36,7 +43,7 @@ var Server = (function () {
             return _this.requestChunk(socket, data);
         });
     };
-    Server.prototype.enterChunk = function (socket, x, y) {
+    Server.prototype.enterChunk = function (socket, x, y, callback) {
         var _this = this;
         this.map.load(x, y).then(function (chunk) {
             _this.map.activate(chunk).then(function (adjChunks) {
@@ -47,6 +54,9 @@ var Server = (function () {
                 socket.emit("entered", {
                     chunk: chunk.id
                 });
+                if(callback) {
+                    callback(chunk);
+                }
             });
         });
     };

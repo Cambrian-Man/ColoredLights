@@ -172,8 +172,8 @@ var Chunk = (function () {
     };
     Chunk.prototype.getRelativePoint = // Given a point in this chunk, converts it to a relative point in the other.
     function (p, chunk) {
-        var xDist = this.chunkX - chunk.chunkX;
-        var yDist = this.chunkY - chunk.chunkY;
+        var xDist = chunk.chunkX - this.chunkX;
+        var yDist = chunk.chunkY - this.chunkY;
         return {
             x: (xDist * Map.chunkSize) + p.x,
             y: (yDist * Map.chunkSize) + p.y

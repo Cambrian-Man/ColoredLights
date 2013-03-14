@@ -164,8 +164,8 @@ export class Chunk {
 
     // Given a point in this chunk, converts it to a relative point in the other.
     getRelativePoint(p: Point, chunk: Chunk): Point {
-        var xDist = this.chunkX - chunk.chunkX;
-        var yDist = this.chunkY - chunk.chunkY;
+        var xDist = chunk.chunkX - this.chunkX;
+        var yDist = chunk.chunkY - this.chunkY;
 
         return {
             x: (xDist * Map.chunkSize) + p.x,

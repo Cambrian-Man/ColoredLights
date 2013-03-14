@@ -77,6 +77,10 @@
       <DependentUpon>Map.ts</DependentUpon>
     </Content>
     <TypeScriptCompile Include="Server.ts" />
+    <TypeScriptCompile Include="Player.ts" />
+    <Content Include="Player.js">
+      <DependentUpon>Player.ts</DependentUpon>
+    </Content>
     <Content Include="Server.js">
       <DependentUpon>Server.ts</DependentUpon>
     </Content>

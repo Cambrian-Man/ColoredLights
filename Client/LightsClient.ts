@@ -60,7 +60,7 @@ class Lights {
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
 
-        Lights.tileSize = 2;
+        Lights.tileSize = canvas.width / 40;
         Lights.pixelSize = Lights.chunkSize * Lights.tileSize;
 
         this.displayChunks = new createjs.Container();
@@ -92,27 +92,41 @@ class Lights {
 
             var interval: number = setInterval(() => {
                 if (checkLoaded()) {
-                    this.enterChunk(data['chunk']);
+                    this.enterChunk(data.chunk);
                     clearInterval(interval);
                 }
             }, 500);
+        });
+
+        this.socket.on("addPlayer", (data) => {
+            if (data.id == this.thisPlayer.id) {
+                this.thisPlayer.x = data.x * Lights.tileSize;
+                this.thisPlayer.y = data.y * Lights.tileSize;
+            }
+            console.log(data);
+            console.log(this.thisPlayer);
         });
 
         this.chunks = {};
         this.players = {};
     }
 
+    addPlayer(x: number, y: number, id: string): Player {
+        var player: Player = new Player(id, this);
+        this.players[id] = player;
+
+        player.image.x = this.stage.canvas.width / 2 - (player.size.width / 2);
+        player.image.y = this.stage.canvas.height / 2 - (player.size.width / 2);
+        this.stage.addChild(player.image);
+
+        return player;
+    }
+
     connect(data) {
         window.addEventListener("keydown", (event: KeyboardEvent) => this.keyDown(event));
         window.addEventListener("keyup", (event: KeyboardEvent) => this.keyUp(event));
 
-        this.thisPlayer = new Player(data.id, this);
-        this.players[data.id] = this.thisPlayer;
-        this.thisPlayer.x = 0;
-        this.thisPlayer.y = 0;
-        this.stage.addChild(this.thisPlayer.image);
-        this.thisPlayer.image.x = this.stage.canvas.width / 2 - (this.thisPlayer.size.width / 2);
-        this.thisPlayer.image.y = this.stage.canvas.height / 2 - (this.thisPlayer.size.width / 2);
+        this.thisPlayer = this.addPlayer(0, 0, data.id);
 
         createjs.Ticker.addListener((event) => this.update(event));
     }

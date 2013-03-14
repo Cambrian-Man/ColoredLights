@@ -6,8 +6,8 @@ var ChunkGen = (function () {
     }
     ChunkGen.majorCavernMin = 10;
     ChunkGen.majorCavernMax = 15;
-    ChunkGen.minorCavernMin = 5;
-    ChunkGen.minorCavernMax = 9;
+    ChunkGen.minorCavernMin = 4;
+    ChunkGen.minorCavernMax = 6;
     ChunkGen.prototype.generate = function () {
         var _this = this;
         console.log("Chamber ", this.chunk.chunkX, this.chunk.chunkY);
@@ -44,10 +44,10 @@ var ChunkGen = (function () {
             _this.circle(ch.x, ch.y, ch.size, 0);
         };
         this.generateMainChamber();
+        this.branch(3, this.chunk.chambers[0]);
         for(i = 0; i < this.chunk.chambers.length; i++) {
             fillChamber(this.chunk.chambers[i]);
         }
-        this.generateBranches(2);
     };
     ChunkGen.prototype.generateMainChamber = function () {
         var x = Math.floor(map.Utils.random(ChunkGen.majorCavernMax, map.Map.chunkSize - ChunkGen.majorCavernMax));
@@ -62,19 +62,45 @@ var ChunkGen = (function () {
             } else {
                 this.link(chamber, adjChamber, 6, 9);
             }
-        }while(Math.random() > chamber.connections.length * 0.3);
+        }while(Math.random() > chamber.connections.length * 0.5);
         this.chunk.chambers.push(chamber);
     };
-    ChunkGen.prototype.generateBranches = function (maxLevels) {
+    ChunkGen.prototype.branch = function (levels, node) {
         var mainChamber = this.chunk.chambers[0];
         var satellite;
+        var unavailable = 0;
         do {
-            var x = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
-            var y = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
+            var x = Math.floor(map.Utils.random(node.x - (node.size * 3), node.x + (node.size * 3)));
+            var y = Math.floor(map.Utils.random(node.x - (node.size * 3), node.x + (node.size * 3)));
             satellite = new map.Chamber(this.chunk.id, x, y, Math.floor(map.Utils.random(ChunkGen.minorCavernMin, ChunkGen.minorCavernMax)));
             satellite.chunk = this.chunk;
-        }while(mainChamber.overlaps(satellite));
-        this.link(mainChamber, satellite, 4, 6);
+            unavailable++;
+            if(unavailable > 200) {
+                break;
+            }
+        }while(this.overlapsChambers(node));
+        this.link(node, satellite, 3, 5);
+        this.chunk.chambers.push(satellite);
+        if(levels > 1) {
+            this.branch(levels - 1, satellite);
+            if(Math.random() < 0.9) {
+                this.branch(levels - 1, satellite);
+            }
+            if(Math.random() < 0.6) {
+                this.branch(levels - 1, satellite);
+            }
+        }
+    };
+    ChunkGen.prototype.overlapsChambers = function (chamber) {
+        for(var i = 0; i < this.chunk.chambers.length; i++) {
+            var otherChamber = this.chunk.chambers[i];
+            if(chamber == otherChamber) {
+                continue;
+            } else if(chamber.overlaps(otherChamber)) {
+                return true;
+            }
+        }
+        return false;
     };
     ChunkGen.prototype.link = function (chamber1, chamber2, min, max) {
         chamber1.linkTo(chamber2);
@@ -90,6 +116,7 @@ var ChunkGen = (function () {
             adjacent.splice(i, 1);
             var chunk = this.chunks.get(adjacent[i]);
             if(chunk) {
+                console.log(chunk.chunkX, chunk.chunkY);
                 if(chunk.chambers.length > 0) {
                     var chamber = this.getRandomChamber(chunk, minSize, maxSize);
                     if(chamber) {

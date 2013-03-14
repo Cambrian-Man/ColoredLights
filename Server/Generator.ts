@@ -4,8 +4,8 @@ export class ChunkGen {
     public static majorCavernMin = 10;
     public static majorCavernMax = 15;
 
-    public static minorCavernMin = 5;
-    public static minorCavernMax = 9;
+    public static minorCavernMin = 4;
+    public static minorCavernMax = 6;
 
     constructor(public chunk: map.Chunk, public chunks:map.ChunkMap) {
     }
@@ -46,11 +46,12 @@ export class ChunkGen {
         }
 
         this.generateMainChamber();
+
+        this.branch(3, this.chunk.chambers[0]);
+
         for (i = 0; i < this.chunk.chambers.length; i++) {
             fillChamber(this.chunk.chambers[i]);
         }
-
-        this.generateBranches(2);
     }
 
     private generateMainChamber() {
@@ -69,21 +70,53 @@ export class ChunkGen {
                 this.link(chamber, adjChamber, 6, 9);
             }
         }
-        while (Math.random() > chamber.connections.length * 0.3);
+        while (Math.random() > chamber.connections.length * 0.5);
+
         this.chunk.chambers.push(chamber);
     }
 
-    private generateBranches(maxLevels: number) {
+    private branch(levels: number, node:map.Chamber) {
         var mainChamber: map.Chamber = this.chunk.chambers[0];
         var satellite: map.Chamber;
+        var unavailable = 0;
         do {
-            var x = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
-            var y = Math.floor(map.Utils.random(ChunkGen.minorCavernMax, map.Map.chunkSize - ChunkGen.minorCavernMax));
+            var x = Math.floor(map.Utils.random(node.x - (node.size * 3), node.x + (node.size * 3)));
+            var y = Math.floor(map.Utils.random(node.x - (node.size * 3), node.x + (node.size * 3)));
             satellite = new map.Chamber(this.chunk.id, x, y, Math.floor(map.Utils.random(ChunkGen.minorCavernMin, ChunkGen.minorCavernMax)));
             satellite.chunk = this.chunk;
+
+            unavailable++;
+            if (unavailable > 200) {
+                break;
+            }
         }
-        while (mainChamber.overlaps(satellite));
-        this.link(mainChamber, satellite, 4, 6);
+        while (this.overlapsChambers(node));
+        this.link(node, satellite, 3, 5);
+        this.chunk.chambers.push(satellite);
+
+        if (levels > 1) {
+            this.branch(levels - 1, satellite);
+            if (Math.random() < 0.9) {
+                this.branch(levels - 1, satellite);
+            }
+            if (Math.random() < 0.6) {
+                this.branch(levels - 1, satellite);
+            }
+        }
+    }
+
+    private overlapsChambers(chamber: map.Chamber): bool {
+        for (var i = 0; i < this.chunk.chambers.length; i++) {
+            var otherChamber: map.Chamber = this.chunk.chambers[i];
+            if (chamber == otherChamber) {
+                continue;
+            }
+            else if (chamber.overlaps(otherChamber)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     link(chamber1: map.Chamber, chamber2: map.Chamber, min:number, max:number) {
@@ -105,6 +138,8 @@ export class ChunkGen {
             var chunk: map.Chunk = this.chunks.get(adjacent[i]);
             
             if (chunk) {
+                console.log(chunk.chunkX, chunk.chunkY);
+
                 if (chunk.chambers.length > 0) {
                     var chamber: map.Chamber = this.getRandomChamber(chunk, minSize, maxSize);
                     if (chamber) {
@@ -152,7 +187,6 @@ export class ChunkGen {
 
     tunnel(chunk1: map.Chunk, p1: map.Point, chunk2: map.Chunk, p2: map.Point, minRadius: number, maxRadius: number) {
         p2 = chunk1.getRelativePoint(p2, chunk2);
-
         var step: number = minRadius / map.Utils.distance(p1, p2);
         for (var f = 0; f < 1; f += step) {
             var radius = Math.floor(map.Utils.random(minRadius, maxRadius));
