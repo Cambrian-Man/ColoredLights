@@ -10,7 +10,9 @@ import zlib = module("zlib");
 
 export class Map {
     private chunks: ChunkMap;
-    static chunkSize: number = 64;
+    static chunkSize: number;
+
+    private maxLoaded: number;
 
     static public directions = {
         north: { x: 0, y: -1 },
@@ -25,7 +27,9 @@ export class Map {
 
     static public directionNames: string[] = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
 
-    constructor() {
+    constructor(config: Object) {
+        Map.chunkSize = config['chunkSize'];
+        this.maxLoaded = config['maxLoaded'];
         this.chunks = new ChunkMap();
     }
 
@@ -48,14 +52,17 @@ export class Map {
                 }
                 else {
                     chunk = new Chunk(chunkResult['x'], chunkResult['y'], <string> chunkResult['_id']);
+                    chunk.updated = chunkResult['updated'];
                     chunk.loadTiles(chunkResult['tiles']).then((tiles: Tile[]) => {
                         chunk.tiles = tiles;
                         chunk.adjacent = this.chunks.getAdjacent(chunk);
                         deferred.resolve(chunk);
                     });
+                    chunk.loadChambers(chunkResult['chambers']);
                 }
 
                 this.chunks.add(chunk);
+                this.chunks.updateAdjacent(chunk);
             },
             (err) => {
                 console.log(err);
@@ -88,6 +95,10 @@ export class Map {
             collect(4), collect(5), collect(6), collect(7)
         ]);
     }
+
+    scanAndClear() {
+        
+    }
 }
 
 export class Chunk {
@@ -97,6 +108,7 @@ export class Chunk {
     public adjacent: string[];
 
     public updated: number;
+    public saved: number;
 
     constructor(public chunkX: number, public chunkY: number, public id?: string) {
         this.tiles = new Array();
@@ -127,18 +139,16 @@ export class Chunk {
     }
 
     getChamberIds(): string[]{
-        var ids: string[] = [];
-
+        var ids = [];
         for (var i = 0; i < this.chambers.length; i++) {
-            ids.push(this.chambers[i].id);
+            ids.push(this.chambers[i].id.toString());
         }
-
+        
         return ids;
     }
 
     save() {
         server.Server.db.saveChunk(this);
-
         for (var i = 0; i < this.chambers.length; i++) {
             server.Server.db.saveChamber(this.chambers[i]);
         }
@@ -176,6 +186,10 @@ export class Chunk {
         return deferred.promise;
     }
 
+    loadChambers(chamberIDs: string[]) {
+
+    }
+
     // Given a point in this chunk, converts it to a relative point in the other.
     getRelativePoint(p: Point, chunk: Chunk): Point {
         var xDist = chunk.chunkX - this.chunkX;
@@ -190,13 +204,19 @@ export class Chunk {
 
 export class ChunkMap {
     private chunks: Object = {};
+    private _size: number;
 
     add(chunk: Chunk) {
         this.chunks[chunk.id] = chunk;
+        this._size++;
     }
 
     get (id: string): Chunk {
         return <Chunk> this.chunks[id];
+    }
+
+    size(): number {
+        return this._size;
     }
 
     // Returns the chunk at a given position
@@ -219,6 +239,7 @@ export class ChunkMap {
 
     remove(chunk: Chunk) {
         if (this.chunks[chunk.id]) {
+            this._size--;
             delete this.chunks[chunk.id];
         }
     }
@@ -258,6 +279,16 @@ export class ChunkMap {
         }
 
         return adjacent;
+    }
+
+    // Updates adjacent chunks, letting them know that this chunk was added.
+    updateAdjacent(chunk: Chunk) {
+        var adjacent = this.getAdjacent(chunk);
+        for (var i = 0; i < adjacent.length; i++) {
+            if (adjacent[i]) {
+                server.Server.db.updateChunk(this.get(adjacent[i]), { adjacent: adjacent });
+            }
+        }
     }
 }
 
@@ -380,9 +411,9 @@ export class Chamber {
 
     getConnectionArray(): string[]{
         var ids: string[] = [];
-        for (var i = 0; this.connections.length; i++) {
+        for (var i = 0; i < this.connections.length; i++) {
             if (this.connections[i].start == this) {
-                ids.push(this.connections[i].end.id);
+                ids.push(this.connections[i].end.id.toString());
             }
         }
 

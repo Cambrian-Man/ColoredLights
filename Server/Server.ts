@@ -22,7 +22,7 @@ export class Server {
     start(config: Object, io: SocketManager) {
         this.io = io;
         Server.db = new db.DB(config['db'], () => {
-            this.map = new map.Map();
+            this.map = new map.Map(config['map']);
             this.io.sockets.on("connection", (socket: Socket) => this.connection(socket));
         });
     }
@@ -106,10 +106,5 @@ export class Server {
     sendChunk(socket: Socket, chunk: map.Chunk) {
         var codes: number[] = chunk.toArray();
         socket.emit('chunk', { chunk: codes, x: chunk.chunkX, y: chunk.chunkY, id: chunk.id, adjacent: chunk.adjacent, updated: chunk.updated });
-    }
-
-    // Saves updated chunks, clears out unused ones.
-    scanAndCleanChunks() {
-
     }
 }

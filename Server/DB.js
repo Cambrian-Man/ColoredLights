@@ -13,7 +13,10 @@ var DB = (function () {
                 updated: Number,
                 tiles: Buffer,
                 chambers: [
-                    mongoose.Types.ObjectId
+                    {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: 'Chamber'
+                    }
                 ]
             },
             Chamber: {
@@ -21,7 +24,10 @@ var DB = (function () {
                 y: Number,
                 size: Number,
                 connections: [
-                    mongoose.Types.ObjectId
+                    {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: 'Chamber'
+                    }
                 ]
             }
         };
@@ -53,7 +59,6 @@ var DB = (function () {
     };
     DB.prototype.saveChunk = function (chunk) {
         var _this = this;
-        return;
         chunk.compressTiles().then(function (tileBuffer) {
             var chunkSave = new _this.models['Chunk']({
                 _id: chunk.id,
@@ -65,7 +70,7 @@ var DB = (function () {
             });
             chunkSave.save(function (err, chunkSave) {
                 if(err) {
-                    console.error('save error', err);
+                    console.error('Error saving chunk', err);
                 }
             });
         });
@@ -78,6 +83,11 @@ var DB = (function () {
             size: chamber.size,
             connections: chamber.getConnectionArray()
         });
+        chamberSave.save(function (err, chamberSave) {
+            if(err) {
+                console.log('Error saving chamber', err);
+            }
+        });
     };
     DB.prototype.updateChunk = function (chunk, update) {
         this.models['Chunk'].findOneAndUpdate({
@@ -86,33 +96,46 @@ var DB = (function () {
             $set: update
         });
     };
+    DB.prototype.getChamber = function (id) {
+        var deferred = Q.defer();
+        this.models['Chamber'].findOne({
+            _id: id
+        }, function (err, result) {
+            if(err) {
+                deferred.reject(err);
+            } else {
+                deferred.resolve(result);
+            }
+        });
+        return deferred.promise;
+    };
     DB.prototype.getChunk = function (props) {
+        var _this = this;
         var deferred = Q.defer();
         var query;
-        /*
-        if (props.id) {
-        query = { _id: props.id };
+        if(props.id) {
+            query = {
+                _id: props.id
+            };
+        } else {
+            query = {
+                x: props.x,
+                y: props.y
+            };
         }
-        else {
-        query = { x: props.x, y: props.y };
-        }
-        this.models['Chunk'].count(query, (err, count) => {
-        if (count == 0) {
-        deferred.resolve(null);
-        }
-        else {
-        this.models['Chunk'].findOne(query, (err, result) => {
-        if (err) {
-        deferred.reject(err);
-        }
-        else if (result) {
-        deferred.resolve(result);
-        }
+        this.models['Chunk'].count(query, function (err, count) {
+            if(count == 0) {
+                deferred.resolve(null);
+            } else {
+                _this.models['Chunk'].findOne(query, function (err, result) {
+                    if(err) {
+                        deferred.reject(err);
+                    } else if(result) {
+                        deferred.resolve(result);
+                    }
+                });
+            }
         });
-        }
-        });
-        */
-        deferred.resolve(null);
         return deferred.promise;
     };
     return DB;

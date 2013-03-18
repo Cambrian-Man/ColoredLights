@@ -14,13 +14,13 @@ export class DB {
             y: Number,
             updated: Number,
             tiles: Buffer,
-            chambers: [mongoose.Types.ObjectId]
+            chambers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Chamber' }]
         },
         Chamber: {
             x: Number,
             y: Number,
             size: Number,
-            connections: [mongoose.Types.ObjectId]
+            connections: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Chamber' }]
         }
     };
 
@@ -52,7 +52,6 @@ export class DB {
     }
 
     saveChunk(chunk: map.Chunk) {
-        return;
         chunk.compressTiles().then((tileBuffer: NodeBuffer) => {
             var chunkSave = new this.models['Chunk']({
                 _id: chunk.id,
@@ -65,7 +64,7 @@ export class DB {
 
             chunkSave.save((err, chunkSave) => {
                 if (err) {
-                    console.error('save error', err);
+                    console.error('Error saving chunk', err);
                 }
             });
         });
@@ -79,16 +78,36 @@ export class DB {
             size: chamber.size,
             connections: chamber.getConnectionArray()
         });
+
+        chamberSave.save((err, chamberSave) => {
+            if (err) {
+                console.log('Error saving chamber', err);
+            }
+        });
     }
 
     updateChunk(chunk: map.Chunk, update:Object) {
         this.models['Chunk'].findOneAndUpdate({ _id: chunk.id }, { $set: update });
     }
 
+    getChamber(id: string): Qpromise {
+        var deferred: Qdeferred = Q.defer();
+
+        this.models['Chamber'].findOne({ _id: id }, (err, result) => {
+            if (err) {
+                deferred.reject(err);
+            }
+            else {
+                deferred.resolve(result);
+            }
+        });
+
+        return deferred.promise;
+    }
+
     getChunk(props: { id?: string; x?: number; y?: number; }): Qpromise {
         var deferred: Qdeferred = Q.defer();
         var query: Object;
-        /*
         if (props.id) {
             query = { _id: props.id };
         }
@@ -110,8 +129,6 @@ export class DB {
                 });
             }
         });
-        */
-        deferred.resolve(null);
 
         return deferred.promise;
     }

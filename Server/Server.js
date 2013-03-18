@@ -16,7 +16,7 @@ var Server = (function () {
         var _this = this;
         this.io = io;
         Server.db = new db.DB(config['db'], function () {
-            _this.map = new map.Map();
+            _this.map = new map.Map(config['map']);
             _this.io.sockets.on("connection", function (socket) {
                 return _this.connection(socket);
             });
@@ -126,9 +126,6 @@ var Server = (function () {
             adjacent: chunk.adjacent,
             updated: chunk.updated
         });
-    };
-    Server.prototype.scanAndCleanChunks = // Saves updated chunks, clears out unused ones.
-    function () {
     };
     return Server;
 })();
