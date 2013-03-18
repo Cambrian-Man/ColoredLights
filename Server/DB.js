@@ -11,7 +11,18 @@ var DB = (function () {
                 x: Number,
                 y: Number,
                 updated: Number,
-                tiles: Buffer
+                tiles: Buffer,
+                chambers: [
+                    mongoose.Types.ObjectId
+                ]
+            },
+            Chamber: {
+                x: Number,
+                y: Number,
+                size: Number,
+                connections: [
+                    mongoose.Types.ObjectId
+                ]
             }
         };
         this.schemas = {
@@ -19,7 +30,8 @@ var DB = (function () {
         this.models = {
         };
         this.schemaNames = [
-            'Chunk'
+            'Chunk', 
+            'Chamber'
         ];
         mongoose.connect(uri);
         this.db = mongoose.connection;
@@ -48,7 +60,8 @@ var DB = (function () {
                 x: chunk.chunkX,
                 y: chunk.chunkY,
                 updated: chunk.updated,
-                tiles: tileBuffer
+                tiles: tileBuffer,
+                chambers: chunk.getChamberIds()
             });
             chunkSave.save(function (err, chunkSave) {
                 if(err) {
@@ -57,13 +70,20 @@ var DB = (function () {
             });
         });
     };
-    DB.prototype.updateAdjacent = function (chunk) {
+    DB.prototype.saveChamber = function (chamber) {
+        var chamberSave = new this.models['Chamber']({
+            _id: chamber.id,
+            x: chamber.x,
+            y: chamber.y,
+            size: chamber.size,
+            connections: chamber.getConnectionArray()
+        });
+    };
+    DB.prototype.updateChunk = function (chunk, update) {
         this.models['Chunk'].findOneAndUpdate({
             _id: chunk.id
         }, {
-            $set: {
-                adjacent: chunk.adjacent
-            }
+            $set: update
         });
     };
     DB.prototype.getChunk = function (props) {

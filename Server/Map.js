@@ -141,8 +141,18 @@ var Chunk = (function () {
         }
         return codes;
     };
+    Chunk.prototype.getChamberIds = function () {
+        var ids = [];
+        for(var i = 0; i < this.chambers.length; i++) {
+            ids.push(this.chambers[i].id);
+        }
+        return ids;
+    };
     Chunk.prototype.save = function () {
         server.Server.db.saveChunk(this);
+        for(var i = 0; i < this.chambers.length; i++) {
+            server.Server.db.saveChamber(this.chambers[i]);
+        }
     };
     Chunk.prototype.compressTiles = function () {
         var deferred = Q.defer();
@@ -295,13 +305,15 @@ var Color = (function () {
 })();
 exports.Color = Color;
 var Chamber = (function () {
-    function Chamber(chunkID, x, y, size) {
+    function Chamber(chunkID, x, y, size, id, connectionIDs) {
         this.chunkID = chunkID;
         this.x = x;
         this.y = y;
         this.size = size;
         this.connections = new Array();
-        this.id = uuid();
+        if(!id) {
+            this.id = new mongoose.Types.ObjectId();
+        }
     }
     Chamber.prototype.linkTo = function (chamber) {
         this.connections.push(new Connection(this, chamber));
@@ -362,6 +374,15 @@ var Chamber = (function () {
             }
         }
         return false;
+    };
+    Chamber.prototype.getConnectionArray = function () {
+        var ids = [];
+        for(var i = 0; this.connections.length; i++) {
+            if(this.connections[i].start == this) {
+                ids.push(this.connections[i].end.id);
+            }
+        }
+        return ids;
     };
     return Chamber;
 })();

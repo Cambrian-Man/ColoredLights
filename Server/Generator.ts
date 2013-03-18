@@ -11,7 +11,7 @@ export class ChunkGen {
     }
 
     generate() {
-        console.log("Chamber ", this.chunk.chunkX, this.chunk.chunkY);
+        console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY);
         
         // Fill the map with blanks.
         var c: map.Color;
@@ -138,8 +138,6 @@ export class ChunkGen {
             var chunk: map.Chunk = this.chunks.get(adjacent[i]);
             
             if (chunk) {
-                console.log(chunk.chunkX, chunk.chunkY);
-
                 if (chunk.chambers.length > 0) {
                     var chamber: map.Chamber = this.getRandomChamber(chunk, minSize, maxSize);
                     if (chamber) {

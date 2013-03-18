@@ -13,15 +13,22 @@ export class DB {
             x: Number,
             y: Number,
             updated: Number,
-            tiles: Buffer
+            tiles: Buffer,
+            chambers: [mongoose.Types.ObjectId]
+        },
+        Chamber: {
+            x: Number,
+            y: Number,
+            size: Number,
+            connections: [mongoose.Types.ObjectId]
         }
     };
 
     private schemas: Object = {};
     private models: Object = {};
-    private schemaNames: string[] = ['Chunk'];
+    private schemaNames: string[] = ['Chunk', 'Chamber'];
 
-    constructor(uri:string, callback?: Function) {
+    constructor(uri: string, callback?: Function) {
         mongoose.connect(uri);
         this.db = mongoose.connection;
         this.db.on('error', console.error.bind(console, 'connection error:'));
@@ -52,7 +59,8 @@ export class DB {
                 x: chunk.chunkX,
                 y: chunk.chunkY,
                 updated: chunk.updated,
-                tiles: tileBuffer
+                tiles: tileBuffer,
+                chambers: chunk.getChamberIds()
             });
 
             chunkSave.save((err, chunkSave) => {
@@ -63,8 +71,18 @@ export class DB {
         });
     }
 
-    updateAdjacent(chunk: map.Chunk) {
-        this.models['Chunk'].findOneAndUpdate({ _id: chunk.id }, { $set: { adjacent: chunk.adjacent } });
+    saveChamber(chamber: map.Chamber) {
+        var chamberSave = new this.models['Chamber']({
+            _id: chamber.id,
+            x: chamber.x,
+            y: chamber.y,
+            size: chamber.size,
+            connections: chamber.getConnectionArray()
+        });
+    }
+
+    updateChunk(chunk: map.Chunk, update:Object) {
+        this.models['Chunk'].findOneAndUpdate({ _id: chunk.id }, { $set: update });
     }
 
     getChunk(props: { id?: string; x?: number; y?: number; }): Qpromise {

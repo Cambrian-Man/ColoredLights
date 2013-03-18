@@ -23,16 +23,16 @@
   <ItemGroup>
     <Content Include="app.css" />
     <Content Include="default.htm" />
-    <Content Include="app.js">
-      <DependentUpon>LightsClient.ts</DependentUpon>
-    </Content>
+    <TypeScriptCompile Include="Lights.ts" />
+    <TypeScriptCompile Include="Player.ts" />
     <Content Include="ts-definitions\DefinitelyTyped\easeljs\easeljs.d.ts" />
     <Content Include="ts-definitions\DefinitelyTyped\jquery\jquery.d.ts" />
+    <Content Include="ts-definitions\DefinitelyTyped\requirejs\requirejs.d.ts" />
     <Content Include="ts-definitions\DefinitelyTyped\socket.io\socket.io.d.ts" />
     <Content Include="ts-definitions\DefinitelyTyped\tween.js\tween.js.d.ts" />
   </ItemGroup>
   <ItemGroup>
-    <TypeScriptCompile Include="LightsClient.ts" />
+    <TypeScriptCompile Include="Client.ts" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="web.config" />
@@ -41,6 +41,7 @@
     <Content Include="ts-definitions\DefinitelyTyped\jquery\jquery.d.key" />
     <Content Include="ts-definitions\DefinitelyTyped\socket.io\socket.io.d.key" />
     <Content Include="ts-definitions\DefinitelyTyped\tween.js\tween.js.d.key" />
+    <Content Include="ts-definitions\DefinitelyTyped\requirejs\requirejs.d.key" />
     <None Include="web.Debug.config">
       <DependentUpon>web.config</DependentUpon>
     </None>
@@ -76,12 +77,14 @@
     </VisualStudio>
   </ProjectExtensions>
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-    <TypeScriptTarget>ES3</TypeScriptTarget>
+    <TypeScriptTarget>ES5</TypeScriptTarget>
+    <TypeScriptModuleKind>amd</TypeScriptModuleKind>
     <TypeScriptIncludeComments>true</TypeScriptIncludeComments>
-    <TypeScriptSourceMap>true</TypeScriptSourceMap>
+    <TypeScriptSourceMap>false</TypeScriptSourceMap>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <TypeScriptTarget>ES3</TypeScriptTarget>
+    <TypeScriptTarget>ES5</TypeScriptTarget>
+    <TypeScriptModuleKind>amd</TypeScriptModuleKind>
     <TypeScriptIncludeComments>false</TypeScriptIncludeComments>
     <TypeScriptSourceMap>false</TypeScriptSourceMap>
   </PropertyGroup>

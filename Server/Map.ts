@@ -126,8 +126,22 @@ export class Chunk {
         return codes;
     }
 
+    getChamberIds(): string[]{
+        var ids: string[] = [];
+
+        for (var i = 0; i < this.chambers.length; i++) {
+            ids.push(this.chambers[i].id);
+        }
+
+        return ids;
+    }
+
     save() {
         server.Server.db.saveChunk(this);
+
+        for (var i = 0; i < this.chambers.length; i++) {
+            server.Server.db.saveChamber(this.chambers[i]);
+        }
     }
 
     compressTiles(): Qpromise {
@@ -300,9 +314,12 @@ export class Chamber {
     public id: string;
     public chunk: Chunk;
 
-    constructor(public chunkID:string, public x?: number, public y?: number, public size?: number) {
+    constructor(public chunkID:string, public x?: number, public y?: number, public size?: number, id?:string, connectionIDs?:string[]) {
         this.connections = new Array();
-        this.id = uuid();
+
+        if (!id) {
+            this.id = new mongoose.Types.ObjectId();
+        }
     }
 
     linkTo(chamber: any) {
@@ -359,6 +376,17 @@ export class Chamber {
         }
 
         return false;
+    }
+
+    getConnectionArray(): string[]{
+        var ids: string[] = [];
+        for (var i = 0; this.connections.length; i++) {
+            if (this.connections[i].start == this) {
+                ids.push(this.connections[i].end.id);
+            }
+        }
+
+        return ids;
     }
 }
 

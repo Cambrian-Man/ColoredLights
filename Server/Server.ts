@@ -6,36 +6,55 @@ var Q: QStatic = require('q');
 var uuid = require('node-uuid');
 import map = module("./Map");
 import db = module("./DB");
+import player = module("./Player");
 import socketio = module('socket.io');
 
 export class Server {
     private map: map.Map;
     static db: db.DB;
     private players: Object = {};
+    private io;
 
     constructor() {
 
     }
 
-    start(config:Object, io: SocketManager) {
+    start(config: Object, io: SocketManager) {
+        this.io = io;
         Server.db = new db.DB(config['db'], () => {
             this.map = new map.Map();
-            io.sockets.on("connection", (socket: Socket) => this.connection(socket));
+            this.io.sockets.on("connection", (socket: Socket) => this.connection(socket));
         });
     }
 
     connection(socket: Socket) {
         var id: string = <string> uuid();
-        var player: Player = new Player(id, socket);
-        this.players[player.id] = player;
+        var p: player.Player = new player.Player(id, socket);
+        this.players[p.id] = p;
         socket.emit('connection', { id: id });
 
         this.enterChunk(socket, 0, 0, (chunk: map.Chunk) => {
-            socket.emit("addPlayer", { id: id, chunk: chunk.id, x: chunk.chambers[0].x, y: chunk.chambers[0].y });
+            this.io.sockets.emit("addPlayer", { id: id, chunkID: chunk.id, x: chunk.chambers[0].x, y: chunk.chambers[0].y });
+
+            // Send the connecting player the other players.
+            for (var pid in this.players) {
+                var otherPlayer: player.Player = this.players[pid];
+                if (otherPlayer != p) {
+                    socket.emit("addPlayer", { id: otherPlayer.id, chunkID: otherPlayer.chunkID, x: otherPlayer.x, y: otherPlayer.y});
+                }
+            }
         });
 
         socket.on("enterChunk", (data) => this.enterChunk(socket, data.x, data.y));
         socket.on("requestChunk", (data) => this.requestChunk(socket, data));
+        socket.on("checkChunkUpdate", (data) => this.checkChunkUpdate(socket, data));
+        socket.on("playerUpdate", (data) => p.update(data, (update) => {
+            for (var pid in this.players) {
+                if (this.players[pid] != p) {
+                    this.players[pid].socket.emit("playerUpdate", update);
+                }
+            }
+        }));
     }
 
     enterChunk(socket: Socket, x: number, y: number, callback?:(chunk: map.Chunk) => any) {
@@ -55,6 +74,21 @@ export class Server {
             });
         });
     }
+    
+    checkChunkUpdate(socket: Socket, data) {
+        var chunks: string[] = data.chunks;
+        var updates: number[] = data.updates;
+
+        for (var i = 0; i < chunks.length; i++) {
+            var chunk: map.Chunk = this.map.getChunk(chunks[i]);
+            if (chunk) {
+                if (chunk.updated > updates[i]) {
+                    console.log(chunks[i], " updated, sending");
+                    this.sendChunk(socket, chunk);
+                }
+            }
+        }
+    }
 
     offerChunk(socket: Socket, chunk: map.Chunk) {
         socket.emit('offerChunk', { id: chunk.id, x: chunk.chunkX, y: chunk.chunkY, adjacent: chunk.adjacent, updated: chunk.updated });
@@ -73,8 +107,9 @@ export class Server {
         var codes: number[] = chunk.toArray();
         socket.emit('chunk', { chunk: codes, x: chunk.chunkX, y: chunk.chunkY, id: chunk.id, adjacent: chunk.adjacent, updated: chunk.updated });
     }
-}
 
-export class Player {
-    constructor(public id: string, public socket: Socket) { };
+    // Saves updated chunks, clears out unused ones.
+    scanAndCleanChunks() {
+
+    }
 }

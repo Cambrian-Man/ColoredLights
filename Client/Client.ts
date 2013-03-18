@@ -2,9 +2,11 @@
 /// <reference path="./ts-definitions/DefinitelyTyped/socket.io/socket.io.d.ts" />
 /* global io */
 
+import player = module("./Player");
+
 declare var io: any;
 
-class Lights {
+export class Game {
     element: HTMLElement;
     stage: createjs.Stage;
     socket: SocketNamespace;
@@ -13,8 +15,8 @@ class Lights {
 
     public chunks: Object;
     public displayChunks: createjs.Container;
-    public players: Object;
-    public thisPlayer: Player;
+    public players: player[];
+    public thisPlayer: player.Player;
 
     static chunkSize: number = 64;
     static tileSize: number;
@@ -54,14 +56,16 @@ class Lights {
         { x: -1, y: -1 }
     ];
 
+    private checkUpdateTimer: number;
+
     static public directionNames: string[] = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
 
     constructor(public canvas: HTMLCanvasElement) {
         this.stage = new createjs.Stage(canvas);
         this.camera = new Camera(this, canvas.width, canvas.height);
 
-        Lights.tileSize = canvas.width / 40;
-        Lights.pixelSize = Lights.chunkSize * Lights.tileSize;
+        Game.tileSize = Math.round(canvas.width / 40);
+        Game.pixelSize = Game.chunkSize * Game.tileSize;
 
         this.displayChunks = new createjs.Container();
         this.stage.addChild(this.displayChunks);
@@ -95,31 +99,52 @@ class Lights {
                     this.enterChunk(data.chunk);
                     clearInterval(interval);
                 }
-            }, 500);
+            }, 20);
         });
 
         this.socket.on("addPlayer", (data) => {
             if (data.id == this.thisPlayer.id) {
-                this.thisPlayer.x = data.x * Lights.tileSize;
-                this.thisPlayer.y = data.y * Lights.tileSize;
+                this.thisPlayer.x = data.x * Game.tileSize;
+                this.thisPlayer.y = data.y * Game.tileSize;
             }
-            console.log(data);
-            console.log(this.thisPlayer);
+            else {
+                var p: player.Player = this.addPlayer(
+                    data.x * Game.tileSize,
+                    data.y * Game.tileSize,
+                    data.id
+                    );
+                p.chunk = this.chunks[data.chunkID];
+            }
+        });
+
+        this.socket.on("playerUpdate", (data) => {
+            for (var i = 0; i < this.players.length; i++) {
+                var p: player.Player = this.players[i];
+                if (data.id == p.id) {
+                    p.chunk = this.chunks[data.chunkID];
+
+                    // If the chunk isn't loaded, it's probably too far away.
+                    if (p.chunk) {
+                        this.players[i].update(data);
+                    }
+                    else {
+                        this.stage.removeChild(p.image);
+                    }
+                }
+            }
         });
 
         this.chunks = {};
-        this.players = {};
+        this.players = [];
     }
 
-    addPlayer(x: number, y: number, id: string): Player {
-        var player: Player = new Player(id, this);
-        this.players[id] = player;
+    addPlayer(x: number, y: number, id: string): player.Player {
+        var p: player.Player = new player.Player(id, this);
+        this.players.push(p);
 
-        player.image.x = this.stage.canvas.width / 2 - (player.size.width / 2);
-        player.image.y = this.stage.canvas.height / 2 - (player.size.width / 2);
-        this.stage.addChild(player.image);
+        this.stage.addChild(p.image);
 
-        return player;
+        return p;
     }
 
     connect(data) {
@@ -127,40 +152,44 @@ class Lights {
         window.addEventListener("keyup", (event: KeyboardEvent) => this.keyUp(event));
 
         this.thisPlayer = this.addPlayer(0, 0, data.id);
+        this.thisPlayer.image.x = this.stage.canvas.width / 2 - (this.thisPlayer.size.width / 2);
+        this.thisPlayer.image.y = this.stage.canvas.height / 2 - (this.thisPlayer.size.width / 2);
+
+        this.thisPlayer.sendUpdates();
 
         createjs.Ticker.addListener((event) => this.update(event));
     }
 
     keyDown(event: KeyboardEvent) {
         switch (event.keyCode) {
-            case Lights.keyCodes.up:
-                Lights.keys.up = true;
+            case Game.keyCodes.up:
+                Game.keys.up = true;
                 break;
-            case Lights.keyCodes.down:
-                Lights.keys.down = true;
+            case Game.keyCodes.down:
+                Game.keys.down = true;
                 break;
-            case Lights.keyCodes.left:
-                Lights.keys.left = true;
+            case Game.keyCodes.left:
+                Game.keys.left = true;
                 break;
-            case Lights.keyCodes.right:
-                Lights.keys.right = true;
+            case Game.keyCodes.right:
+                Game.keys.right = true;
                 break;
         }
     }
 
     keyUp(event: KeyboardEvent) {
         switch (event.keyCode) {
-            case Lights.keyCodes.up:
-                Lights.keys.up = false;
+            case Game.keyCodes.up:
+                Game.keys.up = false;
                 break;
-            case Lights.keyCodes.down:
-                Lights.keys.down = false;
+            case Game.keyCodes.down:
+                Game.keys.down = false;
                 break;
-            case Lights.keyCodes.left:
-                Lights.keys.left = false;
+            case Game.keyCodes.left:
+                Game.keys.left = false;
                 break;
-            case Lights.keyCodes.right:
-                Lights.keys.right = false;
+            case Game.keyCodes.right:
+                Game.keys.right = false;
                 break;
         }
     }
@@ -176,12 +205,16 @@ class Lights {
 
     addChunk(data) {
         var newChunk: Chunk = new Chunk(data.x, data.y, data.chunk, data.adjacent, data.updated);
+        newChunk.chunkID = data.id;
         if (!this.thisPlayer.chunk) {
             this.thisPlayer.chunk = newChunk;
         }
         
         if (this.chunks[data.id]) {
             this.displayChunks.removeChild(this.chunks[data.id]);
+            if (this.thisPlayer.chunk) {
+                this.chunks[data.id].setRelativePosition(this.thisPlayer.chunk);
+            }
         }
 
         this.chunks[data.id] = newChunk;
@@ -190,20 +223,20 @@ class Lights {
     update(event?: any) {
         this.stage.update();
 
-        if (Lights.keys.up) {
+        if (Game.keys.up) {
             this.thisPlayer.speed.y = -10;
         }
-        else if (Lights.keys.down) {
+        else if (Game.keys.down) {
             this.thisPlayer.speed.y = 10;
         }
         else {
             this.thisPlayer.speed.y = 0;
         }
 
-        if (Lights.keys.left) {
+        if (Game.keys.left) {
             this.thisPlayer.speed.x = -10;
         }
-        else if (Lights.keys.right) {
+        else if (Game.keys.right) {
             this.thisPlayer.speed.x = 10;
         }
         else {
@@ -212,27 +245,26 @@ class Lights {
 
         if (this.thisPlayer.chunk) {
             this.thisPlayer.move(this.thisPlayer.speed);
-            if ((this.thisPlayer.x < 0 || this.thisPlayer.x > Lights.pixelSize) ||
-                (this.thisPlayer.y < 0 || this.thisPlayer.y > Lights.pixelSize)) {
+            if (!this.isInChunk(this.thisPlayer)) {
                 this.changeChunk();
             }
 
-            this.camera.focus(this.thisPlayer);
+            this.camera.focus = this.thisPlayer;
+            this.camera.update();
         }
     }
 
     changeChunk() {
-        var chunk: Chunk = this.getChunkByPixel(this.thisPlayer.x, this.thisPlayer.y);
-        this.thisPlayer.x %= Lights.pixelSize;
-        if (this.thisPlayer.x < 0) { this.thisPlayer.x += Lights.pixelSize; }
-        this.thisPlayer.y %= Lights.pixelSize;
-        if (this.thisPlayer.y < 0) { this.thisPlayer.y += Lights.pixelSize; }
+        var roll = this.rollOver(this.thisPlayer);
+        this.thisPlayer.x = roll.x;
+        this.thisPlayer.y = roll.y;
 
-        this.socket.emit("enterChunk", { x: chunk.chunkX, y: chunk.chunkY });
+
+        this.socket.emit("enterChunk", { x: roll.chunk.chunkX, y: roll.chunk.chunkY });
     }
 
     enterChunk(id: string) {
-        var pixelSize = Lights.chunkSize * Lights.tileSize;
+        var pixelSize = Game.chunkSize * Game.tileSize;
         this.displayChunks.removeAllChildren();
 
         this.thisPlayer.chunk = this.chunks[id];
@@ -242,51 +274,61 @@ class Lights {
         this.thisPlayer.chunk.y = 0;
 
         for (var i = 0; i < 8; i++) {
-            var p: Point = Lights.directions[i];
+            var p: Point = Game.directions[i];
             var adjChunk: Chunk = this.chunks[this.thisPlayer.chunk.adjacent[i]];
-            this.displayChunks.addChild(adjChunk);
             if (adjChunk) {
-                var text: createjs.Text = new createjs.Text(adjChunk.chunkX + " " + adjChunk.chunkY, "Helvetica", "#FFF");
-                text.x = p.x * pixelSize;
-                text.y = p.y * pixelSize;
+                this.displayChunks.addChild(adjChunk);
+                adjChunk.setRelativePosition(this.thisPlayer.chunk);
+
+                var text: createjs.Text = new createjs.Text(adjChunk.chunkX + ", " + adjChunk.chunkY, "Helvetica", "#FFF");
+                text.x = adjChunk.x;
+                text.y = adjChunk.y;
                 this.displayChunks.addChild(text);
-                adjChunk.x = p.x * pixelSize;
-                adjChunk.y = p.y * pixelSize;
             }
         }
+
+        clearInterval(this.checkUpdateTimer);
+        this.checkUpdateTimer = setInterval(() => {
+            var chunkIDs: string[] = [];
+            var updates: number[] = [];
+
+            for (var id in this.chunks) {
+                if (this.chunks.hasOwnProperty(id)) {
+                    chunkIDs.push(id);
+                    updates.push(this.chunks[id].updated);
+                }
+            }
+            this.socket.emit("checkChunkUpdate", { chunks: chunkIDs, updates: updates });
+        }, 3000);
     }
 
     getChunkByPixel(x: number, y: number): Chunk {
-        var pixelSize = Lights.chunkSize * Lights.tileSize;
-        var p: Point = { x: 0, y: 0 };
-        if (x < 0) {
-            p.x = -1;
-        }
-        else if (x > pixelSize) {
-            p.x = 1;
-        }
-
-        if (y < 0) {
-            p.y = -1;
-        }
-        else if (y > pixelSize) {
-            p.y = 1;
-        }
+        var p: Point = {
+            x: Math.floor(x / Game.pixelSize),
+            y: Math.floor(y / Game.pixelSize)
+        };
 
         return this.chunkAt(this.thisPlayer.chunk.chunkX + p.x, this.thisPlayer.chunk.chunkY + p.y);
     }
 
-    isInChunk(p: Point):bool {
-        return (p.x >= 0 || p.y >= 0 || p.x < Lights.pixelSize || p.y < Lights.pixelSize);
+    isInChunk(p: Point): bool {
+        if (p.x < 0 || p.y < 0) {
+            return false;
+        }
+        else if (p.x > Game.pixelSize || p.y > Game.pixelSize) {
+            return false;
+        }
+        
+        return true;
     }
 
     rollOver(p: Point): { x: number; y: number; chunk: Chunk; } {
         var chunk: Chunk = this.getChunkByPixel(p.x, p.y);
         var newPoint = {x: 0, y: 0};
-        newPoint.x = p.x % Lights.pixelSize;
-        if (newPoint.x < 0) { newPoint.x += Lights.pixelSize; }
-        newPoint.y = p.y % Lights.pixelSize;
-        if (newPoint.y < 0) { newPoint.y += Lights.pixelSize; }
+        newPoint.x = p.x % Game.pixelSize;
+        if (newPoint.x < 0) { newPoint.x += Game.pixelSize; }
+        newPoint.y = p.y % Game.pixelSize;
+        if (newPoint.y < 0) { newPoint.y += Game.pixelSize; }
 
         return {
             x: newPoint.x,
@@ -310,9 +352,10 @@ class Lights {
     }
 }
 
-class Chunk extends createjs.Shape {
+export class Chunk extends createjs.Shape {
     data: number[];
     public layer: number = 1;
+    public chunkID: string;
 
     constructor(public chunkX: number, public chunkY: number, data:number[], public adjacent:string[], public updated:number) {
         super();
@@ -322,27 +365,27 @@ class Chunk extends createjs.Shape {
     }
 
     generateGraphics() {
-        this.graphics.beginFill("#000").rect(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
+        this.graphics.beginFill("#000").rect(0, 0, Game.chunkSize * Game.tileSize, Game.chunkSize * Game.tileSize);
 
         for (var i = 0; i < this.data.length; i++) {
             var t: Tile = Tile.fromCode(this.data[i]);
-            if (t.type == Lights.types.empty) {
+            if (t.type == Game.types.empty) {
                 continue;
             }
 
             t.draw(this.graphics, this.tilePoint(i));
         }
 
-        this.cache(0, 0, Lights.chunkSize * Lights.tileSize, Lights.chunkSize * Lights.tileSize);
+        this.cache(0, 0, Game.chunkSize * Game.tileSize, Game.chunkSize * Game.tileSize);
     }
 
     isBlocking(p: Point): bool {
         var tilePoint = {
-            x: Math.floor(p.x / Lights.tileSize),
-            y: Math.floor(p.y / Lights.tileSize)
+            x: Math.floor(p.x / Game.tileSize),
+            y: Math.floor(p.y / Game.tileSize)
         }
         
-        var type: number = this.data[(tilePoint.y * Lights.chunkSize) + tilePoint.x] % 10;
+        var type: number = this.data[(tilePoint.y * Game.chunkSize) + tilePoint.x] % 10;
 
         if (type == 1) {
             return true;
@@ -353,64 +396,70 @@ class Chunk extends createjs.Shape {
     }
 
     tilePoint(i: number): Point {
-        var x: number = i % Lights.chunkSize;
-        var y: number = Math.floor(i / Lights.chunkSize);
+        var x: number = i % Game.chunkSize;
+        var y: number = Math.floor(i / Game.chunkSize);
         return { x: x, y: y };
+    }
+
+    setRelativePosition(to: Chunk) {
+        var relX: number = this.chunkX - to.chunkX;
+        var relY: number = this.chunkY - to.chunkY;
+
+        this.x = relX * Game.pixelSize;
+        this.y = relY * Game.pixelSize;
     }
 }
 
-interface Point {
+export interface Point {
     x: number;
     y: number;
 }
 
-class Tile {
+export class Tile {
     constructor(public type: number, public color: Color, public code:number) {
 
     }
 
     draw(graphics: createjs.Graphics, point: Point) {
-        point.x *= Lights.tileSize;
-        point.y *= Lights.tileSize;
+        point.x *= Game.tileSize;
+        point.y *= Game.tileSize;
 
         var canvas: HTMLCanvasElement;
 
-        if (Lights.tileCache[this.code.toString()]) {
-            canvas = <HTMLCanvasElement> Lights.tileCache[this.code.toString()];
+        if (Game.tileCache[this.code.toString()]) {
+            canvas = <HTMLCanvasElement> Game.tileCache[this.code.toString()];
         }
         else {
             canvas = <HTMLCanvasElement> document.createElement("canvas");
-            canvas.width = Lights.tileSize;
-            canvas.height = Lights.tileSize;
+            canvas.width = Game.tileSize;
+            canvas.height = Game.tileSize;
             var newGraphic: createjs.Graphics = new createjs.Graphics();
             newGraphic.beginFill(this.colorString());
-            newGraphic.rect(0, 0, Lights.tileSize, Lights.tileSize);
+            newGraphic.rect(0, 0, Game.tileSize, Game.tileSize);
 
-            if (Lights.simpleGraphics) {
+            if (Game.simpleGraphics) {
                 return;
             }
 
             newGraphic.beginFill(this.modColor(new Color(20, 20, 10)));
             newGraphic.moveTo(0, 0)
-                .lineTo(0 + Lights.tileSize, 0)
-                .lineTo(0 + (Lights.tileSize / 2), 0 + (Lights.tileSize / 2))
+                .lineTo(0 + Game.tileSize, 0)
+                .lineTo(0 + (Game.tileSize / 2), 0 + (Game.tileSize / 2))
                 .closePath();
 
             newGraphic.beginFill(this.modColor(new Color(-20, -20, 0)));
-            newGraphic.moveTo(0, 0 + Lights.tileSize)
-                .lineTo(0 + Lights.tileSize, 0 + Lights.tileSize)
-                .lineTo(0 + (Lights.tileSize / 2), 0 + (Lights.tileSize / 2))
+            newGraphic.moveTo(0, 0 + Game.tileSize)
+                .lineTo(0 + Game.tileSize, 0 + Game.tileSize)
+                .lineTo(0 + (Game.tileSize / 2), 0 + (Game.tileSize / 2))
                 .closePath();
 
             var shape: createjs.Shape = new createjs.Shape(newGraphic);
             shape.draw(canvas.getContext("2d"));
-            Lights.tileCache[this.code.toString()] = canvas;
+            Game.tileCache[this.code.toString()] = canvas;
         }
 
-
-
         graphics.beginBitmapFill(canvas);
-        graphics.rect(point.x, point.y, Lights.tileSize, Lights.tileSize);
+        graphics.rect(point.x, point.y, Game.tileSize, Game.tileSize);
     }
 
     colorString(): string {
@@ -444,7 +493,7 @@ class Tile {
     }
 }
 
-class Color {
+export class Color {
     constructor(public r: number, public g: number, public b: number) {
         this.r = Math.round(r);
         this.g = Math.round(g);
@@ -456,127 +505,36 @@ class Color {
     }
 }
 
-class Player {
+export class Camera {
     public x: number;
     public y: number;
-    public speed: { x: number; y: number; };
-    public size: { width: number; height: number; };
-    public chunk: Chunk;
-    public image: createjs.Shape;
+    public focus: player.Player;
 
-    constructor(public id, public game: Lights) {
-        this.speed = {
-            x: 10,
-            y: 10
-        };
-
-        this.size = {
-            width: Lights.tileSize,
-            height: Lights.tileSize
-        };
-
-        var g: createjs.Graphics = new createjs.Graphics();
-        g.beginFill("#EEE");
-        g.drawRoundRect(0, 0, this.size.width, this.size.height, 2);
-        this.image = new createjs.Shape(g);
-    }
-
-    collide(p: Point):bool{
-        if (this.collidePoint({
-            x: p.x,
-            y: p.y
-        })) {
-            return true;
-        }
-        else if (this.collidePoint({
-                x: this.size.width + p.x,
-                y: p.y
-        })) {
-            return true;
-        }
-        else if (this.collidePoint({
-                x: p.x,
-                y: this.size.height + p.y
-        })) {
-            return true;
-        }
-        else if (this.collidePoint({
-                x: this.size.width + p.x,
-                y: this.size.height + p.y
-        })) {
-            return true;
-        }
-
-        return false;
-    }
-
-    collidePoint(p: Point): bool {
-        var chunk: Chunk = this.chunk;
-        if (this.game.isInChunk(p)) {
-            if (chunk.isBlocking(p)) { return true } else { return false; }
-        }
-        else {
-            var roll: { x: number; y: number; chunk: Chunk; } = this.game.rollOver(p);
-            chunk = roll.chunk;
-            if (chunk.isBlocking(roll)) {
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
-    }
-
-    move(step: Point) {
-        var newPoint: { x: number; y: number; chunk: Chunk; } = {
-            x: this.x + step.x,
-            y: this.y + step.y,
-            chunk: this.chunk
-        };
-        
-        if (!this.game.isInChunk(newPoint)) {
-            newPoint = this.game.rollOver(newPoint);
-            this.chunk = newPoint.chunk;
-        }
-
-        if (!this.collide(newPoint)) {
-            this.x = newPoint.x;
-            this.y = newPoint.y;
-        }
-        else {
-            var newStep = {x : 0, y: 0};
-            if (Math.abs(step.x) > 0) {
-                newStep['x'] = (step.x > 0) ? step.x -= 1 : step.x += 1;
-            }
-            if (Math.abs(step.y) > 0) {
-                newStep['y'] = (step.y > 0) ? step.y -= 1 : step.y += 1;
-            }
-
-            if (Math.abs(newStep.x) > 0 || Math.abs(newStep.y) > 0) {
-                this.move(newStep);
-            }
-        }
-    }
-}
-
-class Camera {
-    public x: number;
-    public y: number;
-
-    constructor(public game:Lights, public width: number, public height: number) {
+    constructor(public game:Game, public width: number, public height: number) {
         this.x = 0;
         this.y = 0;
     }
 
-    focus(player: Player) {
-        this.game.displayChunks.x = -player.x + (this.game.stage.canvas.width / 2) - (player.size.height / 2)
-        this.game.displayChunks.y = -player.y + (this.game.stage.canvas.height / 2) - (player.size.height / 2);
+    update() {
+        var offsetX: number = (this.game.stage.canvas.width / 2) - (this.focus.size.width / 2);
+        var offsetY: number = (this.game.stage.canvas.height / 2) - (this.focus.size.height / 2);
+
+        this.game.displayChunks.x = -this.focus.x + offsetX;
+        this.game.displayChunks.y = -this.focus.y + offsetY;
+
+        for (var i = 0; i < this.game.players.length; i++) {
+            var p: player.Player = this.game.players[i];
+            if (p != this.focus) {
+                // Don't update players in unloaded chunks.
+                if (!p.chunk) {
+                    return;
+                }
+
+                p.setRelativePosition(this.focus.chunk);
+                p.image.x = -(this.focus.x - p.x) + offsetX;
+                p.image.y = -(this.focus.y - p.y) + offsetY;
+                
+            }
+        }
     }
 }
-
-window.onload = () => {
-    var el = <HTMLCanvasElement> document.getElementById("game");
-    el.width = window.innerWidth * 0.75;
-    el.height = el.width * 0.5625;
-    var game = new Lights(el);
-};

@@ -5,6 +5,7 @@ var Q = require('q');
 var uuid = require('node-uuid');
 var map = require("./Map")
 var db = require("./DB")
+var player = require("./Player")
 
 var Server = (function () {
     function Server() {
@@ -13,9 +14,10 @@ var Server = (function () {
     }
     Server.prototype.start = function (config, io) {
         var _this = this;
+        this.io = io;
         Server.db = new db.DB(config['db'], function () {
             _this.map = new map.Map();
-            io.sockets.on("connection", function (socket) {
+            _this.io.sockets.on("connection", function (socket) {
                 return _this.connection(socket);
             });
         });
@@ -23,24 +25,48 @@ var Server = (function () {
     Server.prototype.connection = function (socket) {
         var _this = this;
         var id = uuid();
-        var player = new Player(id, socket);
-        this.players[player.id] = player;
+        var p = new player.Player(id, socket);
+        this.players[p.id] = p;
         socket.emit('connection', {
             id: id
         });
         this.enterChunk(socket, 0, 0, function (chunk) {
-            socket.emit("addPlayer", {
+            _this.io.sockets.emit("addPlayer", {
                 id: id,
-                chunk: chunk.id,
+                chunkID: chunk.id,
                 x: chunk.chambers[0].x,
                 y: chunk.chambers[0].y
             });
+            // Send the connecting player the other players.
+            for(var pid in _this.players) {
+                var otherPlayer = _this.players[pid];
+                if(otherPlayer != p) {
+                    socket.emit("addPlayer", {
+                        id: otherPlayer.id,
+                        chunkID: otherPlayer.chunkID,
+                        x: otherPlayer.x,
+                        y: otherPlayer.y
+                    });
+                }
+            }
         });
         socket.on("enterChunk", function (data) {
             return _this.enterChunk(socket, data.x, data.y);
         });
         socket.on("requestChunk", function (data) {
             return _this.requestChunk(socket, data);
+        });
+        socket.on("checkChunkUpdate", function (data) {
+            return _this.checkChunkUpdate(socket, data);
+        });
+        socket.on("playerUpdate", function (data) {
+            return p.update(data, function (update) {
+                for(var pid in _this.players) {
+                    if(_this.players[pid] != p) {
+                        _this.players[pid].socket.emit("playerUpdate", update);
+                    }
+                }
+            });
         });
     };
     Server.prototype.enterChunk = function (socket, x, y, callback) {
@@ -59,6 +85,19 @@ var Server = (function () {
                 }
             });
         });
+    };
+    Server.prototype.checkChunkUpdate = function (socket, data) {
+        var chunks = data.chunks;
+        var updates = data.updates;
+        for(var i = 0; i < chunks.length; i++) {
+            var chunk = this.map.getChunk(chunks[i]);
+            if(chunk) {
+                if(chunk.updated > updates[i]) {
+                    console.log(chunks[i], " updated, sending");
+                    this.sendChunk(socket, chunk);
+                }
+            }
+        }
     };
     Server.prototype.offerChunk = function (socket, chunk) {
         socket.emit('offerChunk', {
@@ -88,15 +127,10 @@ var Server = (function () {
             updated: chunk.updated
         });
     };
+    Server.prototype.scanAndCleanChunks = // Saves updated chunks, clears out unused ones.
+    function () {
+    };
     return Server;
 })();
 exports.Server = Server;
-var Player = (function () {
-    function Player(id, socket) {
-        this.id = id;
-        this.socket = socket;
-    }
-    return Player;
-})();
-exports.Player = Player;
 //@ sourceMappingURL=Server.js.map

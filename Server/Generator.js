@@ -10,7 +10,7 @@ var ChunkGen = (function () {
     ChunkGen.minorCavernMax = 6;
     ChunkGen.prototype.generate = function () {
         var _this = this;
-        console.log("Chamber ", this.chunk.chunkX, this.chunk.chunkY);
+        console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY);
         // Fill the map with blanks.
         var c;
         var t;
@@ -116,7 +116,6 @@ var ChunkGen = (function () {
             adjacent.splice(i, 1);
             var chunk = this.chunks.get(adjacent[i]);
             if(chunk) {
-                console.log(chunk.chunkX, chunk.chunkY);
                 if(chunk.chambers.length > 0) {
                     var chamber = this.getRandomChamber(chunk, minSize, maxSize);
                     if(chamber) {
