@@ -31,6 +31,10 @@ export class Map {
         Map.chunkSize = config['chunkSize'];
         this.maxLoaded = config['maxLoaded'];
         this.chunks = new ChunkMap();
+
+        setInterval(() => {
+            this.scanAndClear();
+        }, 10000);
     }
 
     load(x: number, y: number): Qpromise {
@@ -53,12 +57,13 @@ export class Map {
                 else {
                     chunk = new Chunk(chunkResult['x'], chunkResult['y'], <string> chunkResult['_id']);
                     chunk.updated = chunkResult['updated'];
+                    chunk.saved = chunk.updated;
                     chunk.loadTiles(chunkResult['tiles']).then((tiles: Tile[]) => {
                         chunk.tiles = tiles;
                         chunk.adjacent = this.chunks.getAdjacent(chunk);
                         deferred.resolve(chunk);
                     });
-                    chunk.loadChambers(chunkResult['chambers']);
+                    this.chunks.loadChambers(chunk, chunkResult);
                 }
 
                 this.chunks.add(chunk);
@@ -97,7 +102,14 @@ export class Map {
     }
 
     scanAndClear() {
-        
+        var ids = this.chunks.keys();
+        for (var i = 0; i < ids.length; i++) {
+            var chunk: Chunk = this.chunks.get(ids[i]);
+            if (chunk.updated > chunk.saved) {
+                chunk.save();
+                console.log("Scan: Saving updated chunk ", chunk.id);
+            }
+        }
     }
 }
 
@@ -148,9 +160,21 @@ export class Chunk {
     }
 
     save() {
-        server.Server.db.saveChunk(this);
-        for (var i = 0; i < this.chambers.length; i++) {
-            server.Server.db.saveChamber(this.chambers[i]);
+        if (!this.saved) {
+            server.Server.db.saveChunk(this);
+            for (var i = 0; i < this.chambers.length; i++) {
+                server.Server.db.saveChamber(this.chambers[i]);
+            }
+        }
+        else {
+            this.saved = this.updated;
+            this.compressTiles().then((tileBuffer: NodeBuffer) => {
+                server.Server.db.updateChunk(this, {
+                    tiles: tileBuffer,
+                    updated: this.updated,
+                    connections: this.getChamberIds()
+                });
+            });
         }
     }
 
@@ -185,11 +209,7 @@ export class Chunk {
 
         return deferred.promise;
     }
-
-    loadChambers(chamberIDs: string[]) {
-
-    }
-
+    
     // Given a point in this chunk, converts it to a relative point in the other.
     getRelativePoint(p: Point, chunk: Chunk): Point {
         var xDist = chunk.chunkX - this.chunkX;
@@ -290,6 +310,37 @@ export class ChunkMap {
             }
         }
     }
+
+    loadChambers(chunk:Chunk, result:any) {
+        var chamberData: any[] = result.chambers;
+        for (var i = 0; i < chamberData.length; i++) {
+            var chamber: Chamber = new Chamber(chunk.id,
+                chamberData[i].x,
+                chamberData[i].y,
+                chamberData[i].size,
+                chamberData[i]._id);
+
+            for (var j = 0; j < chamberData[i].connections.length; j++) {
+                var otherChamber = this.getChamberById(chamberData[i].connections[j].toString());
+                if (otherChamber && !chamber.linked(otherChamber)) {
+                    chamber.linkTo(otherChamber);
+                }
+            }
+
+            chunk.chambers.push(chamber);
+        }
+    }
+
+    getChamberById(id: string): Chamber {
+        for (var cid in this.chunks) {
+            for (var i = 0; i < this.chunks[cid].chambers.length; i++) {
+                if (this.chunks[cid].chambers[i].id == id) {
+                    return this.chunks[cid].chambers[i];
+                }
+            }
+        }
+        return null;
+    }
 }
 
 export interface Point {
@@ -345,11 +396,14 @@ export class Chamber {
     public id: string;
     public chunk: Chunk;
 
-    constructor(public chunkID:string, public x?: number, public y?: number, public size?: number, id?:string, connectionIDs?:string[]) {
+    constructor(public chunkID:string, public x?: number, public y?: number, public size?: number, id?:string) {
         this.connections = new Array();
 
         if (!id) {
             this.id = new mongoose.Types.ObjectId();
+        }
+        else {
+            this.id = id;
         }
     }
 

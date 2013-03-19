@@ -20,7 +20,7 @@ export class DB {
             x: Number,
             y: Number,
             size: Number,
-            connections: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Chamber' }]
+            connections: [mongoose.Schema.Types.ObjectId]
         }
     };
 
@@ -114,19 +114,15 @@ export class DB {
         else {
             query = { x: props.x, y: props.y };
         }
-        this.models['Chunk'].count(query, (err, count) => {
-            if (count == 0) {
-                deferred.resolve(null);
+        
+        this.models['Chunk'].findOne(query)
+            .populate('chambers')
+            .exec((err, result) => {
+            if (err) {
+                deferred.reject(err);
             }
             else {
-                this.models['Chunk'].findOne(query, (err, result) => {
-                    if (err) {
-                        deferred.reject(err);
-                    }
-                    else if (result) {
-                        deferred.resolve(result);
-                    }
-                });
+                deferred.resolve(result);
             }
         });
 

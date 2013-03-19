@@ -24,10 +24,7 @@ var DB = (function () {
                 y: Number,
                 size: Number,
                 connections: [
-                    {
-                        type: mongoose.Schema.Types.ObjectId,
-                        ref: 'Chamber'
-                    }
+                    mongoose.Schema.Types.ObjectId
                 ]
             }
         };
@@ -110,7 +107,6 @@ var DB = (function () {
         return deferred.promise;
     };
     DB.prototype.getChunk = function (props) {
-        var _this = this;
         var deferred = Q.defer();
         var query;
         if(props.id) {
@@ -123,17 +119,11 @@ var DB = (function () {
                 y: props.y
             };
         }
-        this.models['Chunk'].count(query, function (err, count) {
-            if(count == 0) {
-                deferred.resolve(null);
+        this.models['Chunk'].findOne(query).populate('chambers').exec(function (err, result) {
+            if(err) {
+                deferred.reject(err);
             } else {
-                _this.models['Chunk'].findOne(query, function (err, result) {
-                    if(err) {
-                        deferred.reject(err);
-                    } else if(result) {
-                        deferred.resolve(result);
-                    }
-                });
+                deferred.resolve(result);
             }
         });
         return deferred.promise;

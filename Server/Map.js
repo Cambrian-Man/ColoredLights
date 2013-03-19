@@ -9,9 +9,13 @@ var generator = require("./Generator")
 var zlib = require("zlib")
 var Map = (function () {
     function Map(config) {
+        var _this = this;
         Map.chunkSize = config['chunkSize'];
         this.maxLoaded = config['maxLoaded'];
         this.chunks = new ChunkMap();
+        setInterval(function () {
+            _this.scanAndClear();
+        }, 10000);
     }
     Map.directions = {
         north: {
@@ -77,12 +81,13 @@ var Map = (function () {
                 } else {
                     chunk = new Chunk(chunkResult['x'], chunkResult['y'], chunkResult['_id']);
                     chunk.updated = chunkResult['updated'];
+                    chunk.saved = chunk.updated;
                     chunk.loadTiles(chunkResult['tiles']).then(function (tiles) {
                         chunk.tiles = tiles;
                         chunk.adjacent = _this.chunks.getAdjacent(chunk);
                         deferred.resolve(chunk);
                     });
-                    chunk.loadChambers(chunkResult['chambers']);
+                    _this.chunks.loadChambers(chunk, chunkResult);
                 }
                 _this.chunks.add(chunk);
                 _this.chunks.updateAdjacent(chunk);
@@ -118,6 +123,14 @@ var Map = (function () {
         ]);
     };
     Map.prototype.scanAndClear = function () {
+        var ids = this.chunks.keys();
+        for(var i = 0; i < ids.length; i++) {
+            var chunk = this.chunks.get(ids[i]);
+            if(chunk.updated > chunk.saved) {
+                chunk.save();
+                console.log("Scan: Saving updated chunk ", chunk.id);
+            }
+        }
     };
     return Map;
 })();
@@ -155,9 +168,21 @@ var Chunk = (function () {
         return ids;
     };
     Chunk.prototype.save = function () {
-        server.Server.db.saveChunk(this);
-        for(var i = 0; i < this.chambers.length; i++) {
-            server.Server.db.saveChamber(this.chambers[i]);
+        var _this = this;
+        if(!this.saved) {
+            server.Server.db.saveChunk(this);
+            for(var i = 0; i < this.chambers.length; i++) {
+                server.Server.db.saveChamber(this.chambers[i]);
+            }
+        } else {
+            this.saved = this.updated;
+            this.compressTiles().then(function (tileBuffer) {
+                server.Server.db.updateChunk(_this, {
+                    tiles: tileBuffer,
+                    updated: _this.updated,
+                    connections: _this.getChamberIds()
+                });
+            });
         }
     };
     Chunk.prototype.compressTiles = function () {
@@ -185,8 +210,6 @@ var Chunk = (function () {
             deferred.resolve(tiles);
         });
         return deferred.promise;
-    };
-    Chunk.prototype.loadChambers = function (chamberIDs) {
     };
     Chunk.prototype.getRelativePoint = // Given a point in this chunk, converts it to a relative point in the other.
     function (p, chunk) {
@@ -277,6 +300,29 @@ var ChunkMap = (function () {
             }
         }
     };
+    ChunkMap.prototype.loadChambers = function (chunk, result) {
+        var chamberData = result.chambers;
+        for(var i = 0; i < chamberData.length; i++) {
+            var chamber = new Chamber(chunk.id, chamberData[i].x, chamberData[i].y, chamberData[i].size, chamberData[i]._id);
+            for(var j = 0; j < chamberData[i].connections.length; j++) {
+                var otherChamber = this.getChamberById(chamberData[i].connections[j].toString());
+                if(otherChamber && !chamber.linked(otherChamber)) {
+                    chamber.linkTo(otherChamber);
+                }
+            }
+            chunk.chambers.push(chamber);
+        }
+    };
+    ChunkMap.prototype.getChamberById = function (id) {
+        for(var cid in this.chunks) {
+            for(var i = 0; i < this.chunks[cid].chambers.length; i++) {
+                if(this.chunks[cid].chambers[i].id == id) {
+                    return this.chunks[cid].chambers[i];
+                }
+            }
+        }
+        return null;
+    };
     return ChunkMap;
 })();
 exports.ChunkMap = ChunkMap;
@@ -329,7 +375,7 @@ var Color = (function () {
 })();
 exports.Color = Color;
 var Chamber = (function () {
-    function Chamber(chunkID, x, y, size, id, connectionIDs) {
+    function Chamber(chunkID, x, y, size, id) {
         this.chunkID = chunkID;
         this.x = x;
         this.y = y;
@@ -337,6 +383,8 @@ var Chamber = (function () {
         this.connections = new Array();
         if(!id) {
             this.id = new mongoose.Types.ObjectId();
+        } else {
+            this.id = id;
         }
     }
     Chamber.prototype.linkTo = function (chamber) {
