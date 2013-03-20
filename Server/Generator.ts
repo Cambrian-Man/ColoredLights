@@ -12,17 +12,8 @@ export class ChunkGen {
 
     generate() {
         console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY);
+        this.chunk.generated = true;
         
-        // Fill the map with blanks.
-        var c: map.Color;
-        var t: map.Tile;
-
-        for (var i = 0; i < Math.pow(map.Map.chunkSize, 2)); i++) {
-            var g: number = map.Utils.random(20, 30);
-            c = new map.Color(g, g, g);
-            t = new map.Tile(1, c);
-            this.chunk.tiles[i] = t;
-        }
         // Get adjacent chunks and their chambers.
         var fillAdjacent = (chunk: map.Chunk) => {
             var chambers: map.Chamber[] = chunk.chambers;
@@ -190,32 +181,20 @@ export class ChunkGen {
             var radius = Math.floor(map.Utils.random(minRadius, maxRadius));
             var x: number = Math.round(map.Utils.lerp(p1.x, p2.x, f) + map.Utils.random(0, radius / 2));
             var y: number = Math.round(map.Utils.lerp(p1.y, p2.y, f) + map.Utils.random(0, radius / 2));
+
             this.circle(x, y, radius, 0);
         }
     }
 
     setTile(point: map.Point, type?: number, color?: map.Color) {
-        var offset = { x: 0, y: 0 };
+        var rollOver = this.chunks.rollOver(this.chunk, point.x, point.y);
 
-        offset.x = Math.floor(point.x / map.Map.chunkSize);
-        offset.y = Math.floor(point.y / map.Map.chunkSize);
-        
-        var chunk: map.Chunk = this.chunk;
-        if (offset.x != 0 || offset.y != 0) {
-            point.x = point.x % map.Map.chunkSize;
-            if (point.x < 0) { point.x += map.Map.chunkSize; }
-
-            point.y = point.y % map.Map.chunkSize;
-            if (point.y < 0) { point.y += map.Map.chunkSize; }
-
-            chunk = this.chunks.getAt(this.chunk.chunkX + offset.x, this.chunk.chunkY + offset.y);
-            if (!chunk) {
-                return;
-            }
+        if (!rollOver.chunk) {
+            rollOver.chunk = this.chunks.createTransient(point, this.chunk);
         }
 
-        chunk.updated = Date.now();
-        var t: map.Tile = chunk.tileAt(point.x, point.y);
+        rollOver.chunk.updated = Date.now();
+        var t: map.Tile = rollOver.chunk.tileAt(rollOver.x, rollOver.y);
         if (type != undefined) {
             t.type = type;
         }

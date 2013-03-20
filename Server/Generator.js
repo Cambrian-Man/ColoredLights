@@ -11,15 +11,7 @@ var ChunkGen = (function () {
     ChunkGen.prototype.generate = function () {
         var _this = this;
         console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY);
-        // Fill the map with blanks.
-        var c;
-        var t;
-        for(var i = 0; i < Math.pow(map.Map.chunkSize, 2); i++) {
-            var g = map.Utils.random(20, 30);
-            c = new map.Color(g, g, g);
-            t = new map.Tile(1, c);
-            this.chunk.tiles[i] = t;
-        }
+        this.chunk.generated = true;
         // Get adjacent chunks and their chambers.
         var fillAdjacent = function (chunk) {
             var chambers = chunk.chambers;
@@ -173,29 +165,12 @@ var ChunkGen = (function () {
         }
     };
     ChunkGen.prototype.setTile = function (point, type, color) {
-        var offset = {
-            x: 0,
-            y: 0
-        };
-        offset.x = Math.floor(point.x / map.Map.chunkSize);
-        offset.y = Math.floor(point.y / map.Map.chunkSize);
-        var chunk = this.chunk;
-        if(offset.x != 0 || offset.y != 0) {
-            point.x = point.x % map.Map.chunkSize;
-            if(point.x < 0) {
-                point.x += map.Map.chunkSize;
-            }
-            point.y = point.y % map.Map.chunkSize;
-            if(point.y < 0) {
-                point.y += map.Map.chunkSize;
-            }
-            chunk = this.chunks.getAt(this.chunk.chunkX + offset.x, this.chunk.chunkY + offset.y);
-            if(!chunk) {
-                return;
-            }
+        var rollOver = this.chunks.rollOver(this.chunk, point.x, point.y);
+        if(!rollOver.chunk) {
+            rollOver.chunk = this.chunks.createTransient(point, this.chunk);
         }
-        chunk.updated = Date.now();
-        var t = chunk.tileAt(point.x, point.y);
+        rollOver.chunk.updated = Date.now();
+        var t = rollOver.chunk.tileAt(rollOver.x, rollOver.y);
         if(type != undefined) {
             t.type = type;
         } else if(color != undefined) {

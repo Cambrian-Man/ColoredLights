@@ -93,7 +93,6 @@ var Server = (function () {
             var chunk = this.map.getChunk(chunks[i]);
             if(chunk) {
                 if(chunk.updated > updates[i]) {
-                    console.log(chunks[i], " updated, sending");
                     this.sendChunk(socket, chunk);
                 }
             }
@@ -118,6 +117,7 @@ var Server = (function () {
     };
     Server.prototype.sendChunk = function (socket, chunk) {
         var codes = chunk.toArray();
+        console.log(chunk.id);
         socket.emit('chunk', {
             chunk: codes,
             x: chunk.chunkX,

@@ -11,6 +11,7 @@ var DB = (function () {
                 x: Number,
                 y: Number,
                 updated: Number,
+                generated: Boolean,
                 tiles: Buffer,
                 chambers: [
                     {
@@ -56,23 +57,29 @@ var DB = (function () {
     };
     DB.prototype.saveChunk = function (chunk) {
         var _this = this;
+        chunk.saved = Date.now();
+        return;
         chunk.compressTiles().then(function (tileBuffer) {
             var chunkSave = new _this.models['Chunk']({
                 _id: chunk.id,
                 x: chunk.chunkX,
                 y: chunk.chunkY,
                 updated: chunk.updated,
+                generated: chunk.generated,
                 tiles: tileBuffer,
                 chambers: chunk.getChamberIds()
             });
             chunkSave.save(function (err, chunkSave) {
                 if(err) {
                     console.error('Error saving chunk', err);
+                } else {
+                    chunk.saved = Date.now();
                 }
             });
         });
     };
     DB.prototype.saveChamber = function (chamber) {
+        return;
         var chamberSave = new this.models['Chamber']({
             _id: chamber.id,
             x: chamber.x,
@@ -87,6 +94,8 @@ var DB = (function () {
         });
     };
     DB.prototype.updateChunk = function (chunk, update) {
+        chunk.saved = Date.now();
+        return;
         this.models['Chunk'].update({
             _id: chunk.id
         }, {
@@ -96,6 +105,9 @@ var DB = (function () {
                 console.log('Error updating chunk', err);
             }
             console.log("Updated", numAffected);
+            if(numAffected == 1) {
+                chunk.saved = Date.now();
+            }
         });
     };
     DB.prototype.getChamber = function (id) {

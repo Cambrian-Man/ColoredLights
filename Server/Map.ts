@@ -33,7 +33,7 @@ export class Map {
         this.chunks = new ChunkMap();
 
         setInterval(() => {
-            this.scanAndClear();
+            this.scanAndUpdate();
         }, 10000);
     }
 
@@ -41,14 +41,21 @@ export class Map {
         var deferred: Qdeferred = Q.defer();
 
         var chunk: Chunk = this.chunks.getAt(x, y);
+        if (chunk != null) {
+            if (!chunk.generated) {
+                console.log("Ungenerated chunk", x, y);
+                var gen: generator.ChunkGen = new generator.ChunkGen(chunk, this.chunks);
+                gen.generate();
+                chunk.save();
+            }
 
-        if (chunk) {
             deferred.resolve(chunk);
         }
         else {
             server.Server.db.getChunk({ x: x, y: y }).then((chunkResult) => {
                 if (!chunkResult) {
                     chunk = new Chunk(x, y);
+                    chunk.fill();
                     var gen: generator.ChunkGen = new generator.ChunkGen(chunk, this.chunks);
                     gen.generate();
                     chunk.save();
@@ -90,7 +97,7 @@ export class Map {
                 chunk.adjacent[i] = adjChunk.id;
                 deferred.resolve(adjChunk);
             });
-
+            
             return deferred.promise;
         }
 
@@ -100,7 +107,7 @@ export class Map {
         ]);
     }
 
-    scanAndClear() {
+    scanAndUpdate() {
         var ids = this.chunks.keys();
         for (var i = 0; i < ids.length; i++) {
             var chunk: Chunk = this.chunks.get(ids[i]);
@@ -110,18 +117,20 @@ export class Map {
             }
         }
     }
+
 }
 
 export class Chunk {
     public tiles: Tile[];
     public chambers: Chamber[];
-    public active: bool;
     public adjacent: string[];
+    public generated: bool;
 
     public updated: number;
     public saved: number;
 
     constructor(public chunkX: number, public chunkY: number, public id?: string) {
+        this.generated = false;
         this.tiles = new Array();
         this.chambers = new Array();
 
@@ -130,10 +139,6 @@ export class Chunk {
         }
 
         this.adjacent = [];
-    }
-
-    activate() {
-        this.active = true;
     }
 
     tileAt(x: number, y: number): Tile {
@@ -160,6 +165,7 @@ export class Chunk {
 
     save() {
         if (!this.saved) {
+            console.log("Saving", this.id);
             server.Server.db.saveChunk(this);
             for (var i = 0; i < this.chambers.length; i++) {
                 server.Server.db.saveChamber(this.chambers[i]);
@@ -169,12 +175,12 @@ export class Chunk {
             this.compressTiles().then((tileBuffer: NodeBuffer) => {
                 server.Server.db.updateChunk(this, {
                     tiles: tileBuffer,
+                    generated: this.generated,
                     updated: this.updated,
-                    connections: this.getChamberIds()
+                    chambers: this.getChamberIds()
                 });
             });
         }
-        this.saved = this.updated;
     }
 
     compressTiles(): Qpromise {
@@ -209,6 +215,19 @@ export class Chunk {
         return deferred.promise;
     }
     
+    fill() {
+        // Fill the map with blanks.
+        var c: Color;
+        var t: Tile;
+
+        for (var i = 0; i < Math.pow(Map.chunkSize, 2)); i++) {
+            var g: number = Utils.random(20, 30);
+            c = new Color(g, g, g);
+            t = new Tile(1, c);
+            this.tiles[i] = t;
+        }
+    }
+
     // Given a point in this chunk, converts it to a relative point in the other.
     getRelativePoint(p: Point, chunk: Chunk): Point {
         var xDist = chunk.chunkX - this.chunkX;
@@ -223,7 +242,7 @@ export class Chunk {
 
 export class ChunkMap {
     private chunks: Object = {};
-    private _size: number;
+    private _size: number = 0;
 
     add(chunk: Chunk) {
         this.chunks[chunk.id] = chunk;
@@ -329,6 +348,42 @@ export class ChunkMap {
             }
         }
         return null;
+    }
+
+    rollOver(chunk: Chunk, x: number, y: number): { x: number; y: number; chunk: Chunk; } {
+        var offset = { x: 0, y: 0 };
+
+        offset.x = Math.floor(x / Map.chunkSize);
+        offset.y = Math.floor(y / Map.chunkSize);
+
+        var otherChunk: Chunk = chunk;
+        if (offset.x != 0 || offset.y != 0) {
+            x = x % Map.chunkSize;
+            if (x < 0) { x += Map.chunkSize; }
+
+            y = y % Map.chunkSize;
+            if (y < 0) { y += Map.chunkSize; }
+
+            otherChunk = this.getAt(otherChunk.chunkX + offset.x, otherChunk.chunkY + offset.y);
+        }
+        
+        return {
+            x: x,
+            y: y,
+            chunk: otherChunk
+        }
+    }
+
+    createTransient(p: Point, relativeTo: Chunk): Chunk {
+        var newX = relativeTo.chunkX + Math.floor(p.x / Map.chunkSize);
+        var newY = relativeTo.chunkY + Math.floor(p.y / Map.chunkSize);
+        console.log("Creating ungenerated chunk", newX, newY);
+        var newChunk: Chunk = new Chunk(newX, newY);
+        newChunk.fill();
+        newChunk.generated = false;
+        this.add(newChunk);
+
+        return newChunk;
     }
 }
 

@@ -13,6 +13,7 @@ export class DB {
             x: Number,
             y: Number,
             updated: Number,
+            generated: Boolean,
             tiles: Buffer,
             chambers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Chamber' }]
         },
@@ -52,12 +53,15 @@ export class DB {
     }
 
     saveChunk(chunk: map.Chunk) {
+        chunk.saved = Date.now();
+        return;
         chunk.compressTiles().then((tileBuffer: NodeBuffer) => {
             var chunkSave = new this.models['Chunk']({
                 _id: chunk.id,
                 x: chunk.chunkX,
                 y: chunk.chunkY,
                 updated: chunk.updated,
+                generated: chunk.generated,
                 tiles: tileBuffer,
                 chambers: chunk.getChamberIds()
             });
@@ -66,11 +70,15 @@ export class DB {
                 if (err) {
                     console.error('Error saving chunk', err);
                 }
+                else {
+                    chunk.saved = Date.now();
+                }
             });
         });
     }
 
     saveChamber(chamber: map.Chamber) {
+        return;
         var chamberSave = new this.models['Chamber']({
             _id: chamber.id,
             x: chamber.x,
@@ -86,12 +94,17 @@ export class DB {
         });
     }
 
-    updateChunk(chunk: map.Chunk, update:Object) {
+    updateChunk(chunk: map.Chunk, update: Object) {
+        chunk.saved = Date.now();
+        return;
         this.models['Chunk'].update({ _id: chunk.id }, { $set: update }, (err, numAffected) => {
             if (err) {
                 console.log('Error updating chunk', err);
             }
             console.log("Updated", numAffected);
+            if (numAffected == 1) {
+                chunk.saved = Date.now();
+            }
         });
     }
 
@@ -113,6 +126,7 @@ export class DB {
     getChunk(props: { id?: string; x?: number; y?: number; }): Qpromise {
         var deferred: Qdeferred = Q.defer();
         var query: Object;
+
         if (props.id) {
             query = { _id: props.id };
         }

@@ -82,7 +82,6 @@ export class Server {
             var chunk: map.Chunk = this.map.getChunk(chunks[i]);
             if (chunk) {
                 if (chunk.updated > updates[i]) {
-                    console.log(chunks[i], " updated, sending");
                     this.sendChunk(socket, chunk);
                 }
             }
@@ -104,6 +103,7 @@ export class Server {
 
     sendChunk(socket: Socket, chunk: map.Chunk) {
         var codes: number[] = chunk.toArray();
+        console.log(chunk.id);
         socket.emit('chunk', { chunk: codes, x: chunk.chunkX, y: chunk.chunkY, id: chunk.id, adjacent: chunk.adjacent, updated: chunk.updated });
     }
 }
