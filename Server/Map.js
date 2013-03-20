@@ -90,7 +90,6 @@ var Map = (function () {
                     _this.chunks.loadChambers(chunk, chunkResult);
                 }
                 _this.chunks.add(chunk);
-                _this.chunks.updateAdjacent(chunk);
             }, function (err) {
                 console.log(err);
             });
@@ -175,7 +174,6 @@ var Chunk = (function () {
                 server.Server.db.saveChamber(this.chambers[i]);
             }
         } else {
-            this.saved = this.updated;
             this.compressTiles().then(function (tileBuffer) {
                 server.Server.db.updateChunk(_this, {
                     tiles: tileBuffer,
@@ -184,6 +182,7 @@ var Chunk = (function () {
                 });
             });
         }
+        this.saved = this.updated;
     };
     Chunk.prototype.compressTiles = function () {
         var deferred = Q.defer();
@@ -288,17 +287,6 @@ var ChunkMap = (function () {
             }
         }
         return adjacent;
-    };
-    ChunkMap.prototype.updateAdjacent = // Updates adjacent chunks, letting them know that this chunk was added.
-    function (chunk) {
-        var adjacent = this.getAdjacent(chunk);
-        for(var i = 0; i < adjacent.length; i++) {
-            if(adjacent[i]) {
-                server.Server.db.updateChunk(this.get(adjacent[i]), {
-                    adjacent: adjacent
-                });
-            }
-        }
     };
     ChunkMap.prototype.loadChambers = function (chunk, result) {
         var chamberData = result.chambers;

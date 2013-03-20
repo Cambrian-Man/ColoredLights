@@ -15,7 +15,7 @@ define(["require", "exports", "./Player"], function(require, exports, __player__
             var _this = this;
             this.stage = new createjs.Stage(canvas);
             this.camera = new Camera(this, canvas.width, canvas.height);
-            Game.tileSize = Math.round(canvas.width / 40);
+            Game.tileSize = Math.round(canvas.width / 120);
             Game.pixelSize = Game.chunkSize * Game.tileSize;
             this.displayChunks = new createjs.Container();
             this.stage.addChild(this.displayChunks);

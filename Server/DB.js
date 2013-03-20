@@ -87,10 +87,15 @@ var DB = (function () {
         });
     };
     DB.prototype.updateChunk = function (chunk, update) {
-        this.models['Chunk'].findOneAndUpdate({
+        this.models['Chunk'].update({
             _id: chunk.id
         }, {
             $set: update
+        }, function (err, numAffected) {
+            if(err) {
+                console.log('Error updating chunk', err);
+            }
+            console.log("Updated", numAffected);
         });
     };
     DB.prototype.getChamber = function (id) {

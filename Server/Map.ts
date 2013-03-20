@@ -67,7 +67,6 @@ export class Map {
                 }
 
                 this.chunks.add(chunk);
-                this.chunks.updateAdjacent(chunk);
             },
             (err) => {
                 console.log(err);
@@ -167,7 +166,6 @@ export class Chunk {
             }
         }
         else {
-            this.saved = this.updated;
             this.compressTiles().then((tileBuffer: NodeBuffer) => {
                 server.Server.db.updateChunk(this, {
                     tiles: tileBuffer,
@@ -176,6 +174,7 @@ export class Chunk {
                 });
             });
         }
+        this.saved = this.updated;
     }
 
     compressTiles(): Qpromise {
@@ -299,16 +298,6 @@ export class ChunkMap {
         }
 
         return adjacent;
-    }
-
-    // Updates adjacent chunks, letting them know that this chunk was added.
-    updateAdjacent(chunk: Chunk) {
-        var adjacent = this.getAdjacent(chunk);
-        for (var i = 0; i < adjacent.length; i++) {
-            if (adjacent[i]) {
-                server.Server.db.updateChunk(this.get(adjacent[i]), { adjacent: adjacent });
-            }
-        }
     }
 
     loadChambers(chunk:Chunk, result:any) {

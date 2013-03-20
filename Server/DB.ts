@@ -87,7 +87,12 @@ export class DB {
     }
 
     updateChunk(chunk: map.Chunk, update:Object) {
-        this.models['Chunk'].findOneAndUpdate({ _id: chunk.id }, { $set: update });
+        this.models['Chunk'].update({ _id: chunk.id }, { $set: update }, (err, numAffected) => {
+            if (err) {
+                console.log('Error updating chunk', err);
+            }
+            console.log("Updated", numAffected);
+        });
     }
 
     getChamber(id: string): Qpromise {
