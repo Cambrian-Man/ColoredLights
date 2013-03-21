@@ -10,6 +10,7 @@ import zlib = module("zlib");
 
 export class Map {
     private chunks: ChunkMap;
+    private generator: generator.ChunkGen;
     static chunkSize: number;
 
     private maxLoaded: number;
@@ -31,10 +32,11 @@ export class Map {
         Map.chunkSize = config['chunkSize'];
         this.maxLoaded = config['maxLoaded'];
         this.chunks = new ChunkMap();
+        this.generator = new generator.ChunkGen(this.chunks);
 
         setInterval(() => {
             this.scanAndUpdate();
-        }, 10000);
+        }, 20000);
     }
 
     load(x: number, y: number): Qpromise {
@@ -44,11 +46,9 @@ export class Map {
         if (chunk != null) {
             if (!chunk.generated) {
                 console.log("Ungenerated chunk", x, y);
-                var gen: generator.ChunkGen = new generator.ChunkGen(chunk, this.chunks);
-                gen.generate();
+                this.generator.generate(chunk);
                 chunk.save();
             }
-
             deferred.resolve(chunk);
         }
         else {
@@ -56,9 +56,9 @@ export class Map {
                 if (!chunkResult) {
                     chunk = new Chunk(x, y);
                     chunk.fill();
-                    var gen: generator.ChunkGen = new generator.ChunkGen(chunk, this.chunks);
-                    gen.generate();
-                    chunk.save();
+                    this.generator.generate(chunk);
+
+                    var adjacent = this.chunks.getAdjacent(chunk);
                     deferred.resolve(chunk);
                 }
                 else {
@@ -111,7 +111,7 @@ export class Map {
         var ids = this.chunks.keys();
         for (var i = 0; i < ids.length; i++) {
             var chunk: Chunk = this.chunks.get(ids[i]);
-            if (chunk.updated > chunk.saved) {
+            if (!chunk.saved || chunk.updated > chunk.saved) {
                 chunk.save();
                 console.log("Scan: Saving updated chunk ", chunk.id);
             }
@@ -201,6 +201,7 @@ export class Chunk {
     }
 
     loadTiles(tileBuffer: NodeBuffer): Qpromise {
+        this.generated = true;
         var deferred = Q.defer();
         var tiles: Tile[] = [];
 
@@ -322,7 +323,7 @@ export class ChunkMap {
         return adjacent;
     }
 
-    loadChambers(chunk:Chunk, result:any) {
+    loadChambers(chunk: Chunk, result: any) {
         var chamberData: any[] = result.chambers;
         for (var i = 0; i < chamberData.length; i++) {
             var chamber: Chamber = new Chamber(chunk.id,

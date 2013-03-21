@@ -1,16 +1,29 @@
 var map = require('./Map')
 var ChunkGen = (function () {
-    function ChunkGen(chunk, chunks) {
-        this.chunk = chunk;
+    function ChunkGen(chunks) {
         this.chunks = chunks;
+        this._queue = [];
     }
     ChunkGen.majorCavernMin = 10;
     ChunkGen.majorCavernMax = 15;
     ChunkGen.minorCavernMin = 4;
     ChunkGen.minorCavernMax = 6;
-    ChunkGen.prototype.generate = function () {
+    ChunkGen.prototype.generate = function (chunk) {
         var _this = this;
-        console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY);
+        var runQueue = function () {
+            while(_this._queue.length > 0) {
+                _this.runGeneration(_this._queue.shift());
+            }
+        };
+        this._queue.push(chunk);
+        if(this._queue.length == 1) {
+            runQueue();
+        }
+    };
+    ChunkGen.prototype.runGeneration = function (chunk) {
+        var _this = this;
+        this.chunk = chunk;
+        console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY, this.chunk.id);
         this.chunk.generated = true;
         // Get adjacent chunks and their chambers.
         var fillAdjacent = function (chunk) {
@@ -167,7 +180,7 @@ var ChunkGen = (function () {
     ChunkGen.prototype.setTile = function (point, type, color) {
         var rollOver = this.chunks.rollOver(this.chunk, point.x, point.y);
         if(!rollOver.chunk) {
-            rollOver.chunk = this.chunks.createTransient(point, this.chunk);
+            return;
         }
         rollOver.chunk.updated = Date.now();
         var t = rollOver.chunk.tileAt(rollOver.x, rollOver.y);

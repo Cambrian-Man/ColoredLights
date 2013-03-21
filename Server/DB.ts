@@ -54,7 +54,6 @@ export class DB {
 
     saveChunk(chunk: map.Chunk) {
         chunk.saved = Date.now();
-        return;
         chunk.compressTiles().then((tileBuffer: NodeBuffer) => {
             var chunkSave = new this.models['Chunk']({
                 _id: chunk.id,
@@ -78,7 +77,6 @@ export class DB {
     }
 
     saveChamber(chamber: map.Chamber) {
-        return;
         var chamberSave = new this.models['Chamber']({
             _id: chamber.id,
             x: chamber.x,
@@ -96,7 +94,6 @@ export class DB {
 
     updateChunk(chunk: map.Chunk, update: Object) {
         chunk.saved = Date.now();
-        return;
         this.models['Chunk'].update({ _id: chunk.id }, { $set: update }, (err, numAffected) => {
             if (err) {
                 console.log('Error updating chunk', err);

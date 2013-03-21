@@ -58,7 +58,6 @@ var DB = (function () {
     DB.prototype.saveChunk = function (chunk) {
         var _this = this;
         chunk.saved = Date.now();
-        return;
         chunk.compressTiles().then(function (tileBuffer) {
             var chunkSave = new _this.models['Chunk']({
                 _id: chunk.id,
@@ -79,7 +78,6 @@ var DB = (function () {
         });
     };
     DB.prototype.saveChamber = function (chamber) {
-        return;
         var chamberSave = new this.models['Chamber']({
             _id: chamber.id,
             x: chamber.x,
@@ -95,7 +93,6 @@ var DB = (function () {
     };
     DB.prototype.updateChunk = function (chunk, update) {
         chunk.saved = Date.now();
-        return;
         this.models['Chunk'].update({
             _id: chunk.id
         }, {

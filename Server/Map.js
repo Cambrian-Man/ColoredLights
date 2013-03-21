@@ -13,9 +13,10 @@ var Map = (function () {
         Map.chunkSize = config['chunkSize'];
         this.maxLoaded = config['maxLoaded'];
         this.chunks = new ChunkMap();
+        this.generator = new generator.ChunkGen(this.chunks);
         setInterval(function () {
             _this.scanAndUpdate();
-        }, 10000);
+        }, 20000);
     }
     Map.directions = {
         north: {
@@ -68,8 +69,7 @@ var Map = (function () {
         if(chunk != null) {
             if(!chunk.generated) {
                 console.log("Ungenerated chunk", x, y);
-                var gen = new generator.ChunkGen(chunk, this.chunks);
-                gen.generate();
+                this.generator.generate(chunk);
                 chunk.save();
             }
             deferred.resolve(chunk);
@@ -81,9 +81,8 @@ var Map = (function () {
                 if(!chunkResult) {
                     chunk = new Chunk(x, y);
                     chunk.fill();
-                    var gen = new generator.ChunkGen(chunk, _this.chunks);
-                    gen.generate();
-                    chunk.save();
+                    _this.generator.generate(chunk);
+                    var adjacent = _this.chunks.getAdjacent(chunk);
                     deferred.resolve(chunk);
                 } else {
                     chunk = new Chunk(chunkResult['x'], chunkResult['y'], chunkResult['_id']);
@@ -132,7 +131,7 @@ var Map = (function () {
         var ids = this.chunks.keys();
         for(var i = 0; i < ids.length; i++) {
             var chunk = this.chunks.get(ids[i]);
-            if(chunk.updated > chunk.saved) {
+            if(!chunk.saved || chunk.updated > chunk.saved) {
                 chunk.save();
                 console.log("Scan: Saving updated chunk ", chunk.id);
             }
@@ -205,6 +204,7 @@ var Chunk = (function () {
         return deferred.promise;
     };
     Chunk.prototype.loadTiles = function (tileBuffer) {
+        this.generated = true;
         var deferred = Q.defer();
         var tiles = [];
         zlib.inflate(tileBuffer, function (error, result) {

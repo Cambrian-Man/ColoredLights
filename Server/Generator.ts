@@ -7,13 +7,33 @@ export class ChunkGen {
     public static minorCavernMin = 4;
     public static minorCavernMax = 6;
 
-    constructor(public chunk: map.Chunk, public chunks:map.ChunkMap) {
+    private _queue: map.Chunk[];
+    private _timer: number;
+    private chunk: map.Chunk;
+
+    constructor(public chunks: map.ChunkMap) {
+        this._queue = [];
     }
 
-    generate() {
-        console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY);
+    generate(chunk) {
+        var runQueue: Function = () => {
+            while (this._queue.length > 0) {
+                this.runGeneration(this._queue.shift());
+            }
+        }
+
+        this._queue.push(chunk);
+
+        if (this._queue.length == 1) {
+            runQueue();
+        }
+    }
+
+    private runGeneration(chunk: map.Chunk) {
+        this.chunk = chunk;
+        console.log("Generating ", this.chunk.chunkX, this.chunk.chunkY, this.chunk.id);
         this.chunk.generated = true;
-        
+
         // Get adjacent chunks and their chambers.
         var fillAdjacent = (chunk: map.Chunk) => {
             var chambers: map.Chamber[] = chunk.chambers;
@@ -24,7 +44,7 @@ export class ChunkGen {
                 }
             }
         }
-        
+
         var adjacent: string[] = this.chunks.getAdjacent(this.chunk);
         for (var i = 0; i < adjacent.length; i++) {
             if (adjacent[i]) {
@@ -188,9 +208,8 @@ export class ChunkGen {
 
     setTile(point: map.Point, type?: number, color?: map.Color) {
         var rollOver = this.chunks.rollOver(this.chunk, point.x, point.y);
-
         if (!rollOver.chunk) {
-            rollOver.chunk = this.chunks.createTransient(point, this.chunk);
+            return;
         }
 
         rollOver.chunk.updated = Date.now();
