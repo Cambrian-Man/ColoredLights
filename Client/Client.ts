@@ -96,7 +96,6 @@ export class Game {
 
             var interval: number = setInterval(() => {
                 if (checkLoaded()) {
-                    console.log("Loaded");
                     this.enterChunk(data.chunk);
                     clearInterval(interval);
                 }

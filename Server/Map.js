@@ -246,6 +246,9 @@ var ChunkMap = (function () {
         this._size = 0;
     }
     ChunkMap.prototype.add = function (chunk) {
+        if(this.getAt(chunk.chunkX, chunk.chunkY)) {
+            console.log("Duplicate");
+        }
         this.chunks[chunk.id] = chunk;
         this._size++;
     };
@@ -346,7 +349,7 @@ var ChunkMap = (function () {
             if(y < 0) {
                 y += Map.chunkSize;
             }
-            otherChunk = this.getAt(otherChunk.chunkX + offset.x, otherChunk.chunkY + offset.y);
+            otherChunk = this.getAt(chunk.chunkX + offset.x, chunk.chunkY + offset.y);
         }
         return {
             x: x,
@@ -359,9 +362,9 @@ var ChunkMap = (function () {
         var newY = relativeTo.chunkY + Math.floor(p.y / Map.chunkSize);
         console.log("Creating ungenerated chunk", newX, newY);
         var newChunk = new Chunk(newX, newY);
+        this.add(newChunk);
         newChunk.fill();
         newChunk.generated = false;
-        this.add(newChunk);
         return newChunk;
     };
     return ChunkMap;

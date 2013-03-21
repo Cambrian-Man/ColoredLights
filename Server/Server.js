@@ -117,7 +117,6 @@ var Server = (function () {
     };
     Server.prototype.sendChunk = function (socket, chunk) {
         var codes = chunk.toArray();
-        console.log(chunk.id);
         socket.emit('chunk', {
             chunk: codes,
             x: chunk.chunkX,

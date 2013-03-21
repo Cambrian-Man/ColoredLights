@@ -39,7 +39,6 @@ define(["require", "exports", "./Player"], function(require, exports, __player__
                             if(!chunk.adjacent[i]) {
                                 return false;
                             } else if(!_this.chunks[chunk.adjacent[i]]) {
-                                console.log(chunk.adjacent[i]);
                                 return false;
                             }
                         }
@@ -48,7 +47,6 @@ define(["require", "exports", "./Player"], function(require, exports, __player__
                 };
                 var interval = setInterval(function () {
                     if(checkLoaded()) {
-                        console.log("Loaded");
                         _this.enterChunk(data.chunk);
                         clearInterval(interval);
                     }

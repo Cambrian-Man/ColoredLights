@@ -89,7 +89,7 @@ export class Map {
     }
 
     activate(chunk: Chunk): Qpromise {
-        var collect: Function = function (i: number): Qpromise => {
+        var collect: Function = function(i: number): Qpromise => {
             var deferred: Qdeferred = Q.defer();
             var p: Point = Map.directions[Map.directionNames[i]];
 
@@ -97,7 +97,7 @@ export class Map {
                 chunk.adjacent[i] = adjChunk.id;
                 deferred.resolve(adjChunk);
             });
-            
+
             return deferred.promise;
         }
 
@@ -245,6 +245,9 @@ export class ChunkMap {
     private _size: number = 0;
 
     add(chunk: Chunk) {
+        if (this.getAt(chunk.chunkX, chunk.chunkY)) {
+            console.log("Duplicate");
+        }
         this.chunks[chunk.id] = chunk;
         this._size++;
     }
@@ -364,7 +367,7 @@ export class ChunkMap {
             y = y % Map.chunkSize;
             if (y < 0) { y += Map.chunkSize; }
 
-            otherChunk = this.getAt(otherChunk.chunkX + offset.x, otherChunk.chunkY + offset.y);
+            otherChunk = this.getAt(chunk.chunkX + offset.x, chunk.chunkY + offset.y);
         }
         
         return {
@@ -377,11 +380,12 @@ export class ChunkMap {
     createTransient(p: Point, relativeTo: Chunk): Chunk {
         var newX = relativeTo.chunkX + Math.floor(p.x / Map.chunkSize);
         var newY = relativeTo.chunkY + Math.floor(p.y / Map.chunkSize);
+
         console.log("Creating ungenerated chunk", newX, newY);
         var newChunk: Chunk = new Chunk(newX, newY);
+        this.add(newChunk);
         newChunk.fill();
         newChunk.generated = false;
-        this.add(newChunk);
 
         return newChunk;
     }
